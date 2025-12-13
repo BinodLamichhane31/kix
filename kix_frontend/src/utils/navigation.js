@@ -1,0 +1,34 @@
+export const appRoutes = {
+  root: '/',
+  shop: '/shop',
+  customize: '/customize',
+  customizeSneaker: '/customize/sneaker',
+  cart: '/cart',
+  checkout: '/checkout',
+  product: (slug = ':slug') => `/product/${slug}`,
+  dashboard: {
+    root: '/dashboard',
+    overview: '/dashboard',
+    orders: '/dashboard/orders',
+    orderDetail: (id) => `/dashboard/orders/${id}`,
+    profile: '/dashboard/profile',
+    addresses: '/dashboard/addresses',
+    wishlist: '/dashboard/wishlist',
+    designs: '/dashboard/designs',
+    settings: '/dashboard/settings',
+  },
+  auth: {
+    signIn: '/auth/sign-in',
+    signUp: '/auth/sign-up',
+  },
+  admin: {
+    root: '/admin',
+    dashboard: '/admin',
+    products: '/admin/products',
+    orders: '/admin/orders',
+    users: '/admin/users',
+    analytics: '/admin/analytics',
+    settings: '/admin/settings',
+  },
+}
+
