@@ -67,6 +67,12 @@ Thumbs.db
 # Uploads (if you have file uploads)
 uploads/
 public/uploads/
+# But keep the directory structure
+!uploads/.gitkeep
+
+scripts/
+!scripts/.gitkeep
+
 
 
 

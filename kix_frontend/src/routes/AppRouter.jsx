@@ -7,6 +7,7 @@ import LandingPage from '../features/landing/pages/LandingPage'
 import ShopPage from '../features/shop/pages/ShopPage'
 import SignInPage from '../features/auth/pages/SignInPage'
 import SignUpPage from '../features/auth/pages/SignUpPage'
+import GoogleCallbackPage from '../features/auth/pages/GoogleCallbackPage'
 import ProductDetailPage from '../features/shop/pages/ProductDetailPage'
 import CustomizationPage from '../features/customize/pages/CustomizationPage'
 import CustomizeSneaker from '../features/customize/pages/CustomizeSneaker'
@@ -22,6 +23,7 @@ import SettingsPage from '../features/dashboard/pages/SettingsPage'
 import MyDesignsPage from '../features/dashboard/pages/MyDesignsPage'
 import AdminDashboard from '../features/admin/pages/AdminDashboard'
 import AdminProductsPage from '../features/admin/pages/ProductsPage'
+import AdminProductDetailPage from '../features/admin/pages/ProductDetailPage'
 import AdminOrdersPage from '../features/admin/pages/OrdersPage'
 import AdminUsersPage from '../features/admin/pages/UsersPage'
 import AdminAnalyticsPage from '../features/admin/pages/AnalyticsPage'
@@ -35,16 +37,16 @@ export default function AppRouter() {
         {/* Customize sneaker page without navbar/footer */}
         <Route path="customize/sneaker" element={<CustomizeSneaker />} />
         
-        {/* All routes with navbar and footer */}
         <Route path="/" element={<MainLayout />}>
           <Route index element={<LandingPage />} />
-          <Route path="shop" element={<LandingPage />} />
-          <Route path="customize" element={<LandingPage />} />
-          <Route path="product/:slug" element={<LandingPage />} />
-          <Route path="cart" element={<LandingPage />} />
-          <Route path="checkout" element={<LandingPage />} />
+          <Route path="shop" element={<ShopPage />} />
+          <Route path="customize" element={<CustomizationPage />} />
+          <Route path="product/:slug" element={<ProductDetailPage />} />
+          <Route path="cart" element={<CartPage />} />
+          <Route path="checkout" element={<CheckoutPage />} />
           <Route path="auth/sign-in" element={<SignInPage />} />
           <Route path="auth/sign-up" element={<SignUpPage />} />
+          <Route path="auth/google/callback" element={<GoogleCallbackPage />} />
         </Route>
 
         {/* Dashboard routes with sidebar - Protected */}
@@ -52,8 +54,7 @@ export default function AppRouter() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              {/* <DashboardLayout /> */}
-              <h1 className="py-24 text-2xl font-bold text-center">This is Dashboard Page</h1>
+              <DashboardLayout />
             </ProtectedRoute>
           }
         >
@@ -78,6 +79,7 @@ export default function AppRouter() {
         >
           <Route index element={<AdminDashboard />} />
           <Route path="products" element={<AdminProductsPage />} />
+          <Route path="products/:id" element={<AdminProductDetailPage />} />
           <Route path="orders" element={<AdminOrdersPage />} />
           <Route path="users" element={<AdminUsersPage />} />
           <Route path="analytics" element={<AdminAnalyticsPage />} />

@@ -6,28 +6,27 @@ import ShoeViewer from '../components/ShoeViewer';
 import { appRoutes } from '../../../utils/navigation';
 import { formatPrice } from '../../../utils/currency';
 
+// Parts and default colors aligned with the provided customization code
 const initialColors = {
   laces: '#ffffff',
-  logo: '#000000',
-  soleUpper: '#e5e5e5',
-  soleLower: '#c5c5c5',
-  heel: '#ffffff',
-  tongue: '#ffffff',
-  upperBody: '#ffffff',
-  stitching: '#000000',
-  innerPadding: '#ffffff',
+  mesh: '#ffffff',
+  caps: '#ffffff',
+  inner: '#ffffff',
+  sole: '#ffffff',
+  stripes: '#ffffff',
+  band: '#ffffff',
+  patch: '#ffffff',
 };
 
 const allParts = [
   { key: 'laces', label: 'Laces' },
-  { key: 'logo', label: 'Logo' },
-  { key: 'upperBody', label: 'Upper Body' },
-  { key: 'tongue', label: 'Tongue' },
-  { key: 'heel', label: 'Heel' },
-  { key: 'stitching', label: 'Stitching' },
-  { key: 'soleUpper', label: 'Upper Sole' },
-  { key: 'soleLower', label: 'Lower Sole' },
-  { key: 'innerPadding', label: 'Inner Padding' },
+  { key: 'mesh', label: 'Mesh' },
+  { key: 'caps', label: 'Caps' },
+  { key: 'inner', label: 'Inner' },
+  { key: 'sole', label: 'Sole' },
+  { key: 'stripes', label: 'Stripes' },
+  { key: 'band', label: 'Band' },
+  { key: 'patch', label: 'Patch' },
 ];
 
 const baseModels = [

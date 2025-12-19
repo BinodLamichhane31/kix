@@ -9,9 +9,9 @@ export default function LandingPage() {
     <>
       <Hero />
       <SneakerGrid />
-      {/* <CustomizerDemo />
+      <CustomizerDemo />
       <ValueProps />
-      <Testimonials /> */}
+      <Testimonials />
     </>
   );
 }
