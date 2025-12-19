@@ -8,6 +8,7 @@ import Toast from '../../../components/common/Toast';
 
 export function SignUpForm() {
   const navigate = useNavigate();
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5050/api';
   const { login } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
@@ -118,9 +119,14 @@ export function SignUpForm() {
         // Show success toast
         setShowToast(true);
         
+        // Navigate based on user role (new signups are typically 'user' role)
+        const redirectPath = response.data.user?.role === 'admin' 
+          ? appRoutes.admin.dashboard 
+          : appRoutes.dashboard.root;
+        
         // Navigate after a brief delay to show toast
         setTimeout(() => {
-          navigate('/');
+          navigate(redirectPath);
         }, 1000);
       } else {
         // Handle validation errors from backend
@@ -144,7 +150,10 @@ export function SignUpForm() {
       <button
         type="button"
         className="w-full border border-gray-200 dark:border-white/10 rounded-2xl py-3 px-4 flex items-center justify-center gap-3 font-semibold text-gray-700 dark:text-gray-100 bg-white dark:bg-brand-black hover:border-brand-black/50 dark:hover:border-brand-accent/60 transition-all"
-        onClick={() => window.open('https://accounts.google.com/signup', '_blank')}
+        onClick={() => {
+          const backendUrl = `${API_BASE_URL}/auth/google`;
+          window.location.href = backendUrl;
+        }}
       >
         <img
           src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png"
