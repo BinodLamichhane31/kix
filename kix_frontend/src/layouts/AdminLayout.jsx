@@ -92,13 +92,13 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-brand-black text-gray-900 dark:text-white">
+    <div className="min-h-screen text-gray-900 bg-gray-50 dark:bg-brand-black dark:text-white">
       {/* Mobile Header */}
-      <div className="lg:hidden bg-white dark:bg-brand-gray border-b border-gray-200 dark:border-white/10 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
+      <div className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 lg:hidden dark:bg-brand-gray dark:border-white/10">
         <h1 className="text-xl font-black">Admin Panel</h1>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+          className="p-2 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-white/5"
         >
           {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
@@ -116,7 +116,7 @@ export default function AdminLayout() {
               <h2 className="text-2xl font-black tracking-tight">
                 KIX<span className="text-brand-accent">.</span>
               </h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Admin Panel
               </p>
             </div>
@@ -146,10 +146,10 @@ export default function AdminLayout() {
               })}
             </nav>
 
-            <div className="mt-8 pt-8 border-t border-gray-200 dark:border-white/10">
+            <div className="pt-8 mt-8 border-t border-gray-200 dark:border-white/10">
               <button
                 onClick={handleLogoutClick}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors w-full"
+                className="flex items-center w-full gap-3 px-4 py-3 font-medium text-red-600 transition-colors rounded-xl dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
               >
                 <LogOut size={20} />
                 <span>Logout</span>
@@ -161,14 +161,14 @@ export default function AdminLayout() {
         {/* Mobile Overlay */}
         {isMobileMenuOpen && (
           <div
-            className="lg:hidden fixed inset-0 bg-black/50 z-30"
+            className="fixed inset-0 z-30 lg:hidden bg-black/50"
             onClick={() => setIsMobileMenuOpen(false)}
           />
         )}
 
         {/* Main Content */}
-        <div className="flex-1 min-h-screen pt-24 lg:pt-0 pb-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex-1 min-h-screen pt-24 pb-16 lg:pt-0">
+          <div className="px-4 py-8 mx-auto max-w-7xl sm:px-6 lg:px-8">
             <Outlet />
           </div>
         </div>
