@@ -3,8 +3,22 @@ import { useSearchParams } from 'react-router-dom';
 import { ProductCard } from '../components/ProductCard';
 import { ShopFilters } from '../components/ShopFilters';
 import { Pagination } from '../components/Pagination';
-import { shopService, filterOptions } from '../data/dummyProducts';
+import * as productService from '../../../services/api/product.service';
 import { Loader2, Search, X } from 'lucide-react';
+
+// Filter options for the UI
+const filterOptions = {
+  categories: ['Running', 'Lifestyle', 'Basketball', 'Classic', 'Limited Edition'],
+  genders: ['Men', 'Women', 'Unisex'],
+  colors: ['white', 'black', 'red', 'blue', 'pink', 'beige', 'green', 'yellow', 'purple', 'gray'],
+  sortOptions: [
+    { value: 'featured', label: 'Featured' },
+    { value: 'newest', label: 'Newest First' },
+    { value: 'price-asc', label: 'Price: Low to High' },
+    { value: 'price-desc', label: 'Price: High to Low' },
+    { value: 'rating', label: 'Highest Rated' },
+  ],
+};
 
 export default function ShopPage() {
   const [products, setProducts] = useState([]);
@@ -33,15 +47,50 @@ export default function ShopPage() {
   const loadProducts = async () => {
     setLoading(true);
     try {
-      const response = await shopService.getProducts(
-        { ...filters, sort },
+      // Map frontend filters to backend API format
+      const apiFilters = {
+        category: filters.category || undefined,
+        gender: filters.gender ? filters.gender.toLowerCase() : undefined,
+        colors: filters.colors && filters.colors.length > 0 ? filters.colors : undefined,
+        minPrice: filters.minPrice,
+        maxPrice: filters.maxPrice,
+        search: filters.search || undefined,
+        onlyNew: filters.onlyNew || undefined, // Backend expects 'onlyNew' not 'isNew'
+        inStock: true, // Only show in-stock products in shop
+      };
+
+      // Remove undefined values
+      Object.keys(apiFilters).forEach(key => {
+        if (apiFilters[key] === undefined) {
+          delete apiFilters[key];
+        }
+      });
+
+      const response = await productService.getProducts(
+        { ...apiFilters, sort },
         currentPage,
         itemsPerPage
       );
-      setProducts(response.data);
-      setPagination(response.pagination);
+      
+      setProducts(response.data || []);
+      
+      // Transform pagination format if needed
+      if (response.pagination) {
+        setPagination({
+          currentPage: response.pagination.currentPage || currentPage,
+          totalPages: response.pagination.totalPages || 1,
+          totalItems: response.pagination.totalItems || 0,
+          itemsPerPage: response.pagination.itemsPerPage || itemsPerPage,
+          hasNextPage: response.pagination.hasNextPage || false,
+          hasPreviousPage: response.pagination.hasPrevPage || response.pagination.hasPreviousPage || false,
+        });
+      } else {
+        setPagination(null);
+      }
     } catch (error) {
       console.error('Error loading products:', error);
+      setProducts([]);
+      setPagination(null);
     } finally {
       setLoading(false);
     }
@@ -83,7 +132,7 @@ export default function ShopPage() {
       if (value === 'men') patches.gender = 'Men';
       else if (value === 'women') patches.gender = 'Women';
       else if (value === 'unisex') patches.gender = 'Unisex';
-      else if (value === 'all') patches.gender = null;
+      else if (value === 'all' || value === '') patches.gender = null;
     }
 
     if (params.category !== null) {

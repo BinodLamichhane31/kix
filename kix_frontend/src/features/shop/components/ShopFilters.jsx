@@ -1,7 +1,30 @@
 import { useState, useEffect } from 'react';
 import { X, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
-import { filterOptions } from '../data/dummyProducts';
-import { formatNPR, convertUSDToNPR } from '../../../utils/currency';
+import { formatNPR } from '../../../utils/currency';
+
+// Filter options for the UI
+const filterOptions = {
+  categories: ['Running', 'Lifestyle', 'Basketball', 'Classic', 'Limited Edition'],
+  genders: ['Men', 'Women', 'Unisex'],
+  colors: [
+    { value: 'white', name: 'White', hex: '#ffffff' },
+    { value: 'black', name: 'Black', hex: '#000000' },
+    { value: 'red', name: 'Red', hex: '#ef4444' },
+    { value: 'blue', name: 'Blue', hex: '#3b82f6' },
+    { value: 'pink', name: 'Pink', hex: '#ec4899' },
+    { value: 'beige', name: 'Beige', hex: '#f5f5dc' },
+    { value: 'green', name: 'Green', hex: '#10b981' },
+    { value: 'yellow', name: 'Yellow', hex: '#fbbf24' },
+    { value: 'purple', name: 'Purple', hex: '#a855f7' },
+    { value: 'gray', name: 'Gray', hex: '#6b7280' },
+  ],
+  priceRanges: [
+    { min: 0, max: 10000, label: 'Under ₨10,000' },
+    { min: 10000, max: 20000, label: '₨10,000 - ₨20,000' },
+    { min: 20000, max: 30000, label: '₨20,000 - ₨30,000' },
+    { min: 30000, max: 39900, label: 'Over ₨30,000' },
+  ],
+};
 
 export function ShopFilters({ filters, onFilterChange, isOpen, onClose }) {
   const [localFilters, setLocalFilters] = useState(filters);
