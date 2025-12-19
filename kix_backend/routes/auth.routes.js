@@ -1,5 +1,6 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
+import crypto from 'crypto';
 import User from '../models/User.model.js';
 import { generateToken } from '../utils/jwt.utils.js';
 import { authenticate } from '../middleware/auth.middleware.js';
@@ -197,6 +198,154 @@ router.post('/logout', authenticate, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error during logout',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+});
+
+/**
+ * @route   GET /api/auth/google
+ * @desc    Start Google OAuth flow
+ * @access  Public
+ */
+router.get('/google', (req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const redirectUri = process.env.GOOGLE_CALLBACK_URL;
+
+  if (!clientId || !redirectUri) {
+    return res.status(500).json({
+      success: false,
+      message: 'Google OAuth is not configured on the server',
+    });
+  }
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: 'openid email profile',
+    access_type: 'offline',
+    prompt: 'consent',
+  });
+
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+});
+
+/**
+ * @route   GET /api/auth/google/callback
+ * @desc    Google OAuth callback – create/login user and redirect to frontend with JWT
+ * @access  Public
+ */
+router.get('/google/callback', async (req, res) => {
+  try {
+    const code = req.query.code;
+
+    if (!code) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing authorization code from Google',
+      });
+    }
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const redirectUri = process.env.GOOGLE_CALLBACK_URL;
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+    if (!clientId || !clientSecret || !redirectUri) {
+      return res.status(500).json({
+        success: false,
+        message: 'Google OAuth is not configured on the server',
+      });
+    }
+
+    // Exchange code for tokens
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.json().catch(() => ({}));
+      console.error('Google token exchange failed:', errorData);
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to authenticate with Google',
+      });
+    }
+
+    const tokenData = await tokenResponse.json();
+    const accessToken = tokenData.access_token;
+
+    // Fetch Google user profile
+    const profileResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!profileResponse.ok) {
+      const errorData = await profileResponse.json().catch(() => ({}));
+      console.error('Google userinfo failed:', errorData);
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to fetch Google user profile',
+      });
+    }
+
+    const profile = await profileResponse.json();
+    const email = profile.email;
+    const name = profile.name || profile.given_name || email?.split('@')[0] || 'Google User';
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Google account does not have a verified email',
+      });
+    }
+
+    // Find or create user
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = new User({
+        name,
+        email,
+        // Random password; Google users will log in via Google
+        password: crypto.randomBytes(32).toString('hex'),
+      });
+      await user.save();
+    }
+
+    if (!user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: 'Account is deactivated. Please contact support.',
+      });
+    }
+
+    // Generate JWT
+    const token = generateToken({
+      userId: user._id.toString(),
+      email: user.email,
+      role: user.role,
+    });
+
+    // Redirect back to frontend with token as query param
+    const redirectUrl = new URL('/auth/google/callback', frontendUrl);
+    redirectUrl.searchParams.set('token', token);
+
+    res.redirect(redirectUrl.toString());
+  } catch (error) {
+    console.error('Google OAuth callback error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error during Google authentication',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }

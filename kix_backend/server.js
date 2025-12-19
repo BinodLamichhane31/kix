@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import authRoutes from './routes/auth.routes.js';
+import productRoutes from './routes/product.routes.js';
 
 dotenv.config();
 
@@ -17,6 +18,13 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Serve uploaded files statically
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+app.use('/uploads', express.static(join(__dirname, 'uploads')));
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'KIX API is running' });
@@ -24,6 +32,7 @@ app.get('/health', (req, res) => {
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
 
 // Connect to MongoDB
 mongoose
