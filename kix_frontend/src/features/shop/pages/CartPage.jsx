@@ -1,31 +1,10 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Trash2, Plus, Minus, Gift, ChevronDown } from 'lucide-react';
+import { useMemo, useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Trash2, Plus, Minus, Gift, ChevronDown, Loader2 } from 'lucide-react';
 import { formatPrice } from '../../../utils/currency';
 import { appRoutes } from '../../../utils/navigation';
-
-const initialCart = [
-  {
-    id: 'air-walker-v2',
-    name: 'Air Walker V2',
-    color: 'Arctic Grey',
-    size: 'EU 42',
-    price: 185,
-    originalPrice: 210,
-    image: 'https://images.unsplash.com/photo-1542272604-787c3835535d?q=80&w=1200&auto=format&fit=crop',
-    qty: 1,
-  },
-  {
-    id: 'nova-glide',
-    name: 'Nova Glide',
-    color: 'Midnight',
-    size: 'EU 40',
-    price: 165,
-    originalPrice: null,
-    image: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=1200&auto=format&fit=crop',
-    qty: 2,
-  },
-];
+import * as cartService from '../../../services/api/cart.service';
+import { useCart } from '../../../store/contexts/CartContext';
 
 const shippingOptions = [
   { id: 'standard', label: 'Standard', description: '3-5 business days', price: 0 },
@@ -42,55 +21,156 @@ const promoRules = {
 };
 
 export default function CartPage() {
-  const [items, setItems] = useState(initialCart);
+  const navigate = useNavigate();
+  const { refreshCart } = useCart();
+  const [cart, setCart] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
   const [shipping, setShipping] = useState('standard');
   const [promoInput, setPromoInput] = useState('');
   const [appliedPromo, setAppliedPromo] = useState(null);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    loadCart();
+  }, []);
+
+  useEffect(() => {
+    if (cart && cart.shippingMethod) {
+      setShipping(cart.shippingMethod);
+    }
+    if (cart && cart.promoCode) {
+      setAppliedPromo(cart.promoCode);
+    }
+  }, [cart]);
+
+  const loadCart = async () => {
+    try {
+      setLoading(true);
+      const cartData = await cartService.getCart();
+      setCart(cartData);
+    } catch (error) {
+      console.error('Error loading cart:', error);
+      // If unauthorized, redirect to sign in
+      if (error.message.includes('Authentication')) {
+        navigate('/auth/sign-in');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const totals = useMemo(() => {
-    const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);
-    const shippingFee = shippingOptions.find((option) => option.id === shipping)?.price ?? 0;
-    const discount =
-      appliedPromo && promoRules[appliedPromo]
-        ? subtotal * promoRules[appliedPromo].value
-        : 0;
-    const total = Math.max(subtotal - discount, 0) + shippingFee;
+    if (!cart) return { subtotal: 0, discount: 0, shippingFee: 0, total: 0 };
+    
+    const subtotal = cart.subtotal || 0;
+    const shippingFee = cart.shippingFee || 0;
+    const discount = cart.discount || 0;
+    const total = cart.total || 0;
 
     return { subtotal, discount, shippingFee, total };
-  }, [items, shipping, appliedPromo]);
+  }, [cart]);
 
-  const updateQty = (id, delta) => {
-    setItems((prev) =>
-      prev
-        .map((item) =>
-          item.id === id
-            ? { ...item, qty: Math.max(1, item.qty + delta) }
-            : item
-        )
-        .filter((item) => item.qty > 0)
-    );
+  const updateQty = async (itemId, delta) => {
+    try {
+      setUpdating(true);
+      const item = cart.items.find((i) => i._id === itemId);
+      if (!item) return;
+
+      const newQuantity = item.quantity + delta;
+      if (newQuantity <= 0) {
+        await removeItem(itemId);
+      } else {
+        const updatedCart = await cartService.updateCartItem(itemId, newQuantity);
+        setCart(updatedCart);
+        refreshCart(); // Update navbar count
+      }
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      setError(error.message || 'Failed to update quantity');
+    } finally {
+      setUpdating(false);
+    }
   };
 
-  const removeItem = (id) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+  const removeItem = async (itemId) => {
+    try {
+      setUpdating(true);
+      const updatedCart = await cartService.removeCartItem(itemId);
+      setCart(updatedCart);
+      refreshCart(); // Update navbar count
+    } catch (error) {
+      console.error('Error removing item:', error);
+      setError(error.message || 'Failed to remove item');
+    } finally {
+      setUpdating(false);
+    }
   };
 
-  const handleApplyPromo = (event) => {
+  const handleApplyPromo = async (event) => {
     event.preventDefault();
     const code = promoInput.trim().toUpperCase();
     if (!code) return;
 
-    if (promoRules[code]) {
-      setAppliedPromo(code);
+    try {
+      setUpdating(true);
       setError('');
-    } else {
-      setError('Invalid code. Try "KIX10" for 10% off.');
+      const updatedCart = await cartService.applyPromoCode(code);
+      setCart(updatedCart);
+      setAppliedPromo(code);
+      refreshCart(); // Update navbar count
+    } catch (error) {
+      console.error('Error applying promo code:', error);
+      setError(error.message || 'Invalid code. Try "KIX10" for 10% off.');
       setAppliedPromo(null);
+    } finally {
+      setUpdating(false);
     }
   };
 
-  const isEmpty = items.length === 0;
+  const handleShippingChange = async (newShipping) => {
+    try {
+      setUpdating(true);
+      setShipping(newShipping);
+      const updatedCart = await cartService.updateShippingMethod(newShipping);
+      setCart(updatedCart);
+      refreshCart(); // Update navbar count
+    } catch (error) {
+      console.error('Error updating shipping method:', error);
+      setError(error.message || 'Failed to update shipping method');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleClearCart = async () => {
+    if (!window.confirm('Are you sure you want to clear your cart?')) return;
+
+    try {
+      setUpdating(true);
+      await cartService.clearCart();
+      await loadCart();
+      refreshCart(); // Update navbar count
+    } catch (error) {
+      console.error('Error clearing cart:', error);
+      setError(error.message || 'Failed to clear cart');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const isEmpty = !cart || !cart.items || cart.items.length === 0;
+
+  if (loading) {
+    return (
+      <section className="bg-gray-50 dark:bg-brand-black min-h-screen pt-24 pb-16 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 size={48} className="mx-auto animate-spin text-brand-black dark:text-brand-accent" />
+          <p className="text-gray-600 dark:text-gray-400">Loading cart...</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="bg-gray-50 dark:bg-brand-black min-h-screen pt-24 pb-16 text-gray-900 dark:text-white">
@@ -110,8 +190,9 @@ export default function CartPage() {
               <h1 className="text-4xl font-black tracking-tight">Cart</h1>
               {!isEmpty && (
                 <button
-                  onClick={() => setItems([])}
-                  className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors"
+                  onClick={handleClearCart}
+                  disabled={updating}
+                  className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
                 >
                   Clear all
                 </button>
@@ -138,71 +219,75 @@ export default function CartPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="bg-white dark:bg-brand-gray rounded-2xl border border-gray-200 dark:border-white/10 p-5 flex gap-5 group hover:border-gray-300 dark:hover:border-white/20 transition-colors"
-                  >
-                    <div className="w-24 h-24 rounded-xl bg-gray-100 dark:bg-white/5 flex-shrink-0 overflow-hidden">
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="flex-1 flex flex-col justify-between min-w-0">
-                      <div className="flex justify-between gap-4 mb-3">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-base font-bold mb-1 truncate">{item.name}</h3>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                            {item.color} · {item.size}
-                          </p>
-                          <div className="flex items-center gap-2 mt-2">
-                            <span className="text-base font-bold">{formatPrice(item.price)}</span>
-                            {item.originalPrice && (
-                              <span className="text-xs text-gray-400 line-through">
-                                {formatPrice(item.originalPrice)}
-                              </span>
-                            )}
+                {cart.items.map((item) => {
+                  const product = item.product;
+                  const productImage = product?.image || '/placeholder-shoe.jpg';
+                  const productName = product?.name || 'Product';
+                  
+                  return (
+                    <div
+                      key={item._id}
+                      className="bg-white dark:bg-brand-gray rounded-2xl border border-gray-200 dark:border-white/10 p-5 flex gap-5 group hover:border-gray-300 dark:hover:border-white/20 transition-colors"
+                    >
+                      <div className="w-24 h-24 rounded-xl bg-gray-100 dark:bg-white/5 flex-shrink-0 overflow-hidden">
+                        <img
+                          src={productImage}
+                          alt={productName}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="flex-1 flex flex-col justify-between min-w-0">
+                        <div className="flex justify-between gap-4 mb-3">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-base font-bold mb-1 truncate">{productName}</h3>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                              {item.color} · {item.size}
+                            </p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="text-base font-bold">{formatPrice(item.price)}</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => removeItem(item._id)}
+                            disabled={updating}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-gray-400 hover:text-red-500 disabled:opacity-50"
+                            aria-label="Remove item"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center border border-gray-200 dark:border-white/10 rounded-lg overflow-hidden">
+                            <button
+                              type="button"
+                              disabled={updating}
+                              className="p-2 text-gray-600 dark:text-gray-300 hover:text-brand-black dark:hover:text-brand-accent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
+                              onClick={() => updateQty(item._id, -1)}
+                              aria-label="Decrease quantity"
+                            >
+                              <Minus size={14} />
+                            </button>
+                            <span className="px-4 py-2 text-sm font-semibold min-w-[3rem] text-center border-x border-gray-200 dark:border-white/10">
+                              {item.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={updating}
+                              className="p-2 text-gray-600 dark:text-gray-300 hover:text-brand-black dark:hover:text-brand-accent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
+                              onClick={() => updateQty(item._id, 1)}
+                              aria-label="Increase quantity"
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-lg font-bold">{formatPrice(item.price * item.quantity)}</p>
                           </div>
                         </div>
-                        <button
-                          onClick={() => removeItem(item.id)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-gray-400 hover:text-red-500"
-                          aria-label="Remove item"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center border border-gray-200 dark:border-white/10 rounded-lg overflow-hidden">
-                          <button
-                            type="button"
-                            className="p-2 text-gray-600 dark:text-gray-300 hover:text-brand-black dark:hover:text-brand-accent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                            onClick={() => updateQty(item.id, -1)}
-                            aria-label="Decrease quantity"
-                          >
-                            <Minus size={14} />
-                          </button>
-                          <span className="px-4 py-2 text-sm font-semibold min-w-[3rem] text-center border-x border-gray-200 dark:border-white/10">
-                            {item.qty}
-                          </span>
-                          <button
-                            type="button"
-                            className="p-2 text-gray-600 dark:text-gray-300 hover:text-brand-black dark:hover:text-brand-accent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                            onClick={() => updateQty(item.id, 1)}
-                            aria-label="Increase quantity"
-                          >
-                            <Plus size={14} />
-                          </button>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-lg font-bold">{formatPrice(item.price * item.qty)}</p>
-                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -275,8 +360,9 @@ export default function CartPage() {
                 <div className="relative">
                   <select
                     value={shipping}
-                    onChange={(e) => setShipping(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-brand-black/40 px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-white focus:border-brand-black dark:focus:border-brand-accent focus:outline-none transition-colors appearance-none cursor-pointer"
+                    onChange={(e) => handleShippingChange(e.target.value)}
+                    disabled={updating}
+                    className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-brand-black/40 px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-white focus:border-brand-black dark:focus:border-brand-accent focus:outline-none transition-colors appearance-none cursor-pointer disabled:opacity-50"
                   >
                     {shippingOptions.map((option) => (
                       <option key={option.id} value={option.id}>
@@ -292,12 +378,18 @@ export default function CartPage() {
               </div>
 
               {/* Checkout Button */}
-              <Link
-                to={appRoutes.checkout}
-                className="block w-full bg-brand-black dark:bg-brand-accent text-white dark:text-brand-black rounded-xl py-3.5 font-bold text-center hover:bg-brand-accent dark:hover:bg-white transition-colors"
-              >
-                Proceed to checkout
-              </Link>
+              {isEmpty ? (
+                <div className="block w-full bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-xl py-3.5 font-bold text-center cursor-not-allowed">
+                  Proceed to checkout
+                </div>
+              ) : (
+                <Link
+                  to={appRoutes.checkout}
+                  className="block w-full bg-brand-black dark:bg-brand-accent text-white dark:text-brand-black rounded-xl py-3.5 font-bold text-center hover:bg-brand-accent dark:hover:bg-white transition-colors"
+                >
+                  Proceed to checkout
+                </Link>
+              )}
               <p className="text-xs text-center text-gray-500 dark:text-gray-400">
                 By continuing, you agree to our{' '}
                 <span className="underline cursor-pointer hover:text-brand-black dark:hover:text-brand-accent">
