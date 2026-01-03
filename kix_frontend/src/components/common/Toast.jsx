@@ -1,57 +1,45 @@
 import { useEffect } from 'react';
-import { Check, X } from 'lucide-react';
+import { Check, X, AlertCircle, Info } from 'lucide-react';
 
-export default function Toast({
-  message,
-  isVisible,
-  onClose,
-  type = 'success',
-  autoDismissDuration = 3000,
-}) {
+export function Toast({ message, type = 'info', onClose, duration = 3000 }) {
   useEffect(() => {
-    if (isVisible && typeof autoDismissDuration === 'number' && autoDismissDuration > 0) {
+    if (duration > 0) {
       const timer = setTimeout(() => {
         onClose();
-      }, autoDismissDuration);
-
+      }, duration);
       return () => clearTimeout(timer);
     }
-  }, [isVisible, onClose, autoDismissDuration]);
+  }, [duration, onClose]);
 
-  if (!isVisible) return null;
+  const icons = {
+    success: Check,
+    error: X,
+    warning: AlertCircle,
+    info: Info,
+  };
 
-  const bgColor = type === 'success' 
-    ? 'bg-green-50 dark:bg-green-900 border-green-200 dark:border-green-700'
-    : 'bg-red-50 dark:bg-red-900 border-red-200 dark:border-red-700';
+  const styles = {
+    success: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800',
+    error: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800',
+    warning: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800',
+    info: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+  };
 
-  const textColor = type === 'success'
-    ? 'text-green-700 dark:text-green-300'
-    : 'text-red-700 dark:text-red-300';
+  const Icon = icons[type] || Info;
 
   return (
-    <div className="fixed z-50 transition-all duration-300 ease-in-out transform top-24 right-4">
-      <div className={`${bgColor} border rounded-lg shadow-lg p-4 flex items-center gap-3 min-w-[300px] max-w-md`}>
-        {type === 'success' ? (
-          <div className="flex items-center justify-center flex-shrink-0 w-5 h-5 bg-green-500 rounded-full">
-            <Check size={14} className="text-white" />
-          </div>
-        ) : (
-          <div className="flex items-center justify-center flex-shrink-0 w-5 h-5 bg-red-500 rounded-full">
-            <X size={14} className="text-white" />
-          </div>
-        )}
-        <p className={`flex-1 text-sm font-medium ${textColor}`}>
-          {message}
-        </p>
-        <button
-          onClick={onClose}
-          className={`p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 ${textColor}`}
-          aria-label="Close"
-        >
-          <X size={16} />
-        </button>
-      </div>
+    <div
+      className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl border shadow-lg backdrop-blur-sm min-w-[300px] max-w-md animate-in slide-in-from-top-5 ${styles[type]}`}
+    >
+      <Icon size={20} className="flex-shrink-0" />
+      <p className="flex-1 text-sm font-semibold">{message}</p>
+      <button
+        onClick={onClose}
+        className="flex-shrink-0 hover:opacity-70 transition-opacity"
+        aria-label="Close"
+      >
+        <X size={16} />
+      </button>
     </div>
   );
 }
-
