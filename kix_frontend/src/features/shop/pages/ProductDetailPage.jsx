@@ -2,7 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Loader2, ArrowLeft, Star, ShoppingBag, Heart, Shield, Truck, Sparkles, Palette, Check } from 'lucide-react';
 import * as productService from '../../../services/api/product.service';
+import * as cartService from '../../../services/api/cart.service';
+import * as wishlistService from '../../../services/api/wishlist.service';
 import { formatPrice } from '../../../utils/currency';
+import { appRoutes } from '../../../utils/navigation';
+import { useCart } from '../../../store/contexts/CartContext';
+import { useToast } from '../../../store/contexts/ToastContext';
+import { useAuth } from '../../../store/contexts/AuthContext';
 import { ReviewsSection } from '../components/ReviewsSection';
 import { RelatedSneakers } from '../components/RelatedSneakers';
 
@@ -14,6 +20,12 @@ export default function ProductDetailPage() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedColor, setSelectedColor] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
+  const [addingToCart, setAddingToCart] = useState(false);
+  const [isInWishlist, setIsInWishlist] = useState(false);
+  const [togglingWishlist, setTogglingWishlist] = useState(false);
+  const { refreshCart } = useCart();
+  const { showToast } = useToast();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     let isMounted = true;
@@ -47,6 +59,54 @@ export default function ProductDetailPage() {
     };
   }, [slug]);
 
+  // Check if product is in wishlist
+  useEffect(() => {
+    if (isAuthenticated && product?.id) {
+      checkWishlistStatus();
+    }
+  }, [isAuthenticated, product?.id]);
+
+  const checkWishlistStatus = async () => {
+    try {
+      const inWishlist = await wishlistService.checkWishlist(product.id || product._id);
+      setIsInWishlist(inWishlist);
+    } catch (error) {
+      // Silently fail - user might not be authenticated
+      setIsInWishlist(false);
+    }
+  };
+
+  const handleWishlistToggle = async () => {
+    if (!isAuthenticated) {
+      navigate('/auth/sign-in');
+      return;
+    }
+
+    try {
+      setTogglingWishlist(true);
+      const productId = product.id || product._id;
+
+      if (isInWishlist) {
+        await wishlistService.removeFromWishlist(productId);
+        setIsInWishlist(false);
+        showToast('Removed from wishlist', 'success');
+      } else {
+        await wishlistService.addToWishlist(productId);
+        setIsInWishlist(true);
+        showToast('Added to wishlist!', 'success');
+      }
+    } catch (error) {
+      console.error('Error toggling wishlist:', error);
+      if (error.message.includes('Authentication')) {
+        navigate('/auth/sign-in');
+      } else {
+        showToast(error.message || 'Failed to update wishlist', 'error');
+      }
+    } finally {
+      setTogglingWishlist(false);
+    }
+  };
+
   const galleryImages = useMemo(() => {
     if (!product) return [];
     const images = product.images && product.images.length > 0 ? product.images : [product.image];
@@ -66,6 +126,87 @@ export default function ProductDetailPage() {
     }
     return list.slice(0, 4);
   }, [galleryImages]);
+
+  const handleAddToCart = async () => {
+    if (!selectedSize || !selectedColor) {
+      showToast('Please select a size and color', 'warning');
+      return;
+    }
+
+    if (!product.inStock) {
+      showToast('This product is out of stock', 'error');
+      return;
+    }
+
+    try {
+      setAddingToCart(true);
+
+      await cartService.addItemToCart({
+        productId: product.id || product._id,
+        quantity: 1,
+        size: selectedSize,
+        color: selectedColor,
+        customization: null,
+      });
+
+      showToast('Added to cart!', 'success');
+      // Refresh cart to update count in navbar
+      refreshCart();
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      
+      if (error.message.includes('Authentication')) {
+        navigate('/auth/sign-in');
+      } else {
+        showToast(error.message || 'Failed to add to cart. Please try again.', 'error');
+      }
+    } finally {
+      setAddingToCart(false);
+    }
+  };
+
+  const handleBuyNow = async () => {
+    if (!selectedSize || !selectedColor) {
+      showToast('Please select a size and color', 'warning');
+      return;
+    }
+
+    if (!product.inStock) {
+      showToast('This product is out of stock', 'error');
+      return;
+    }
+
+    try {
+      setAddingToCart(true);
+
+      // Clear existing cart first
+      await cartService.clearCart();
+
+      // Add only this product to cart
+      await cartService.addItemToCart({
+        productId: product.id || product._id,
+        quantity: 1,
+        size: selectedSize,
+        color: selectedColor,
+        customization: null,
+      });
+
+      // Refresh cart to update count in navbar
+      refreshCart();
+      // Navigate to checkout after adding to cart
+      navigate(appRoutes.checkout);
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      
+      if (error.message.includes('Authentication')) {
+        navigate('/auth/sign-in');
+      } else {
+        showToast(error.message || 'Failed to add to cart. Please try again.', 'error');
+      }
+    } finally {
+      setAddingToCart(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -229,15 +370,49 @@ export default function ProductDetailPage() {
             )}
 
             <div className="grid gap-3 sm:grid-cols-3">
-              <button className="flex items-center justify-center w-full gap-2 py-4 font-bold text-white transition-all shadow-xl bg-brand-black dark:bg-brand-accent dark:text-brand-black rounded-2xl hover:bg-brand-accent dark:hover:bg-white">
-                <ShoppingBag size={20} />
-                Add to bag
+              <button
+                onClick={handleAddToCart}
+                disabled={addingToCart || !selectedSize || !selectedColor || !product.inStock}
+                className="flex items-center justify-center w-full gap-2 py-4 font-bold text-white transition-all shadow-xl bg-brand-black dark:bg-brand-accent dark:text-brand-black rounded-2xl hover:bg-brand-accent dark:hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {addingToCart ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  <>
+                    <ShoppingBag size={20} />
+                    Add to bag
+                  </>
+                )}
               </button>
-              <button className="flex items-center justify-center w-full gap-2 py-4 font-bold text-gray-700 transition-all border border-gray-200 dark:border-white/20 rounded-2xl dark:text-gray-200 hover:border-brand-black dark:hover:border-brand-accent">
-                <Heart size={20} />
-                Wishlist
+              <button
+                onClick={handleWishlistToggle}
+                disabled={togglingWishlist}
+                className={`flex items-center justify-center w-full gap-2 py-4 font-bold transition-all border rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isInWishlist
+                    ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30'
+                    : 'text-gray-700 dark:text-gray-200 border-gray-200 dark:border-white/20 hover:border-brand-black dark:hover:border-brand-accent'
+                }`}
+              >
+                {togglingWishlist ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin" />
+                    {isInWishlist ? 'Removing...' : 'Adding...'}
+                  </>
+                ) : (
+                  <>
+                    <Heart size={20} fill={isInWishlist ? 'currentColor' : 'none'} />
+                    {isInWishlist ? 'In Wishlist' : 'Wishlist'}
+                  </>
+                )}
               </button>
-              <button className="flex items-center justify-center w-full gap-2 py-4 font-bold text-gray-700 transition-all border border-gray-200 dark:border-white/20 rounded-2xl dark:text-gray-200 hover:border-brand-black dark:hover:border-brand-accent">
+              <button
+                onClick={handleBuyNow}
+                disabled={addingToCart || !selectedSize || !selectedColor || !product.inStock}
+                className="flex items-center justify-center w-full gap-2 py-4 font-bold text-gray-700 transition-all border border-gray-200 dark:border-white/20 rounded-2xl dark:text-gray-200 hover:border-brand-black dark:hover:border-brand-accent disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <Sparkles size={20} />
                 Buy instantly
               </button>
@@ -247,7 +422,12 @@ export default function ProductDetailPage() {
           </div>
         </div>
 
-        <ReviewsSection contextKey={product.slug} title="Community feedback" />
+        <ReviewsSection 
+          productId={product._id || product.id} 
+          productRating={product.rating || 0} 
+          productReviewCount={product.reviewCount || 0}
+          title="Community feedback" 
+        />
         <RelatedSneakers category={product.category} excludeSlug={product.slug} title="Related sneakers" />
       </div>
     </section>
