@@ -235,6 +235,27 @@ export const getProductBySlug = async (slug) => {
 };
 
 /**
+ * Get product by ID (Admin only)
+ */
+export const getProductById = async (id) => {
+  try {
+    const response = await apiRequest(`/products/id/${id}`);
+    
+    if (response.success) {
+      return transformProduct(response.data);
+    }
+    
+    throw new Error(response.message || 'Product not found');
+  } catch (error) {
+    console.error('Error fetching product:', error);
+    if (error.message.includes('404') || error.message.includes('not found')) {
+      return null;
+    }
+    throw error;
+  }
+};
+
+/**
  * Get related products
  */
 export const getRelatedProducts = async ({ category, excludeSlug, limit = 4 } = {}) => {
