@@ -3,9 +3,11 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, ShoppingBag, User, Search, Sun, Moon, ArrowRight } from 'lucide-react';
 import { appRoutes } from '../../utils/navigation';
 import { useAuth } from '../../store/contexts/AuthContext';
+import { useCart } from '../../store/contexts/CartContext';
 
 export function Navbar({ isDark, toggleTheme }) {
   const { isAuthenticated, user } = useAuth();
+  const { itemCount } = useCart();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeMegaMenu, setActiveMegaMenu] = useState(null); // 'men' or 'women'
@@ -448,9 +450,11 @@ export function Navbar({ isDark, toggleTheme }) {
               className="relative hover:text-brand-black dark:hover:text-brand-accent transition-colors"
             >
               <ShoppingBag size={20} />
-              <span className="absolute -top-2 -right-2 bg-brand-accent text-brand-black text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
-                2
-              </span>
+              {itemCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-brand-accent text-brand-black text-[10px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
+                  {itemCount > 99 ? '99+' : itemCount}
+                </span>
+              )}
             </Link>
           </div>
 
@@ -532,8 +536,15 @@ export function Navbar({ isDark, toggleTheme }) {
                     className="flex flex-col items-center text-gray-500 dark:text-gray-400 hover:text-brand-black dark:hover:text-brand-accent"
                     onClick={closeMenus}
                   >
-                    <ShoppingBag size={20} className="mb-1"/>
-                    <span className="text-xs">Cart (2)</span>
+                    <div className="relative">
+                      <ShoppingBag size={20} className="mb-1"/>
+                      {itemCount > 0 && (
+                        <span className="absolute -top-1 -right-2 bg-brand-accent text-brand-black text-[8px] font-bold min-w-[14px] h-3.5 flex items-center justify-center rounded-full px-0.5">
+                          {itemCount > 99 ? '99+' : itemCount}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs">Cart{itemCount > 0 ? ` (${itemCount})` : ''}</span>
                   </Link>
                 </div>
               ) : (
@@ -567,8 +578,15 @@ export function Navbar({ isDark, toggleTheme }) {
                       className="flex flex-col items-center text-gray-500 dark:text-gray-400 hover:text-brand-black dark:hover:text-brand-accent"
                       onClick={closeMenus}
                     >
-                      <ShoppingBag size={20} className="mb-1"/>
-                      <span className="text-xs">Cart (2)</span>
+                      <div className="relative">
+                        <ShoppingBag size={20} className="mb-1"/>
+                        {itemCount > 0 && (
+                          <span className="absolute -top-1 -right-2 bg-brand-accent text-brand-black text-[8px] font-bold min-w-[14px] h-3.5 flex items-center justify-center rounded-full px-0.5">
+                            {itemCount > 99 ? '99+' : itemCount}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs">Cart{itemCount > 0 ? ` (${itemCount})` : ''}</span>
                     </Link>
                   </div>
                 </div>
