@@ -25,6 +25,7 @@ import AdminDashboard from '../features/admin/pages/AdminDashboard'
 import AdminProductsPage from '../features/admin/pages/ProductsPage'
 import AdminProductDetailPage from '../features/admin/pages/ProductDetailPage'
 import AdminOrdersPage from '../features/admin/pages/OrdersPage'
+import AdminOrderDetailPage from '../features/admin/pages/OrderDetailPage'
 import AdminUsersPage from '../features/admin/pages/UsersPage'
 import AdminAnalyticsPage from '../features/admin/pages/AnalyticsPage'
 import AdminSettingsPage from '../features/admin/pages/SettingsPage'
@@ -81,6 +82,7 @@ export default function AppRouter() {
           <Route path="products" element={<AdminProductsPage />} />
           <Route path="products/:id" element={<AdminProductDetailPage />} />
           <Route path="orders" element={<AdminOrdersPage />} />
+          <Route path="orders/:id" element={<AdminOrderDetailPage />} />
           <Route path="users" element={<AdminUsersPage />} />
           <Route path="analytics" element={<AdminAnalyticsPage />} />
           <Route path="settings" element={<AdminSettingsPage />} />

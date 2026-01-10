@@ -47,6 +47,10 @@ export function AuthProvider({ children }) {
     })
   }
 
+  const updateUser = (userData) => {
+    setUser((prev) => ({ ...prev, ...userData }))
+  }
+
   const value = useMemo(
     () => ({
       isAuthenticated,
@@ -54,6 +58,7 @@ export function AuthProvider({ children }) {
       isLoading,
       login,
       logout,
+      updateUser,
     }),
     [isAuthenticated, user, isLoading],
   )
