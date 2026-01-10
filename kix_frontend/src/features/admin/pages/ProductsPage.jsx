@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { formatPrice } from '../../../utils/currency';
 import { ProductForm } from '../components/ProductForm';
 import * as productService from '../../../services/api/product.service';
-import Toast from '../../../components/common/Toast';
+import { Toast } from '../../../components/common/Toast';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
 
 const statusMap = {
@@ -31,7 +31,7 @@ export default function ProductsPage() {
   const [deletingId, setDeletingId] = useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
-  const [toast, setToast] = useState({ isVisible: false, message: '', type: 'success' });
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
   // Fetch products from API
   useEffect(() => {
@@ -93,14 +93,14 @@ export default function ProductsPage() {
       // Reload products after deletion
       await loadProducts();
       setToast({
-        isVisible: true,
+        show: true,
         message: `Product "${productToDelete.name}" deleted successfully`,
         type: 'success',
       });
     } catch (err) {
       console.error('Error deleting product:', err);
       setToast({
-        isVisible: true,
+        show: true,
         message: err.message || 'Failed to delete product',
         type: 'error',
       });
@@ -113,7 +113,7 @@ export default function ProductsPage() {
   const handleFormSuccess = (product, isUpdate = false) => {
     loadProducts();
     setToast({
-      isVisible: true,
+      show: true,
       message: isUpdate 
         ? `Product "${product?.name || 'Product'}" updated successfully`
         : `Product "${product?.name || 'Product'}" added successfully`,
@@ -360,12 +360,14 @@ export default function ProductsPage() {
       />
 
       {/* Toast Notification */}
-      <Toast
-        message={toast.message}
-        isVisible={toast.isVisible}
-        type={toast.type}
-        onClose={() => setToast({ ...toast, isVisible: false })}
-      />
+      {toast.show && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast({ ...toast, show: false })}
+          duration={3000}
+        />
+      )}
     </div>
   );
 }

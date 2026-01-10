@@ -4,7 +4,8 @@ import { ArrowLeft, Edit, Trash2, Loader2, AlertCircle, Package, Tag, DollarSign
 import * as productService from '../../../services/api/product.service';
 import { formatPrice } from '../../../utils/currency';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
-import Toast from '../../../components/common/Toast';
+import { Toast } from '../../../components/common/Toast';
+import { ReviewsSection } from '../../shop/components/ReviewsSection';
 
 export default function AdminProductDetailPage() {
   const { id } = useParams();
@@ -15,7 +16,7 @@ export default function AdminProductDetailPage() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [toast, setToast] = useState({ isVisible: false, message: '', type: 'success' });
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
   useEffect(() => {
     loadProduct();
@@ -47,7 +48,7 @@ export default function AdminProductDetailPage() {
     try {
       await productService.deleteProduct(id);
       setToast({
-        isVisible: true,
+        show: true,
         message: `Product "${product.name}" deleted successfully`,
         type: 'success',
       });
@@ -57,7 +58,7 @@ export default function AdminProductDetailPage() {
     } catch (err) {
       console.error('Error deleting product:', err);
       setToast({
-        isVisible: true,
+        show: true,
         message: err.message || 'Failed to delete product',
         type: 'error',
       });
@@ -415,15 +416,35 @@ export default function AdminProductDetailPage() {
       />
 
       {/* Toast Notification */}
-      <Toast
-        message={toast.message}
-        isVisible={toast.isVisible}
-        type={toast.type}
-        onClose={() => setToast({ ...toast, isVisible: false })}
-      />
+      {toast.show && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast({ ...toast, show: false })}
+          duration={3000}
+        />
+      )}
+
+      {/* Reviews Section */}
+      {product && (
+        <div className="mt-8">
+          <ReviewsSection 
+            productId={product._id || product.id} 
+            productRating={product.rating || 0} 
+            productReviewCount={product.reviewCount || 0}
+            title="Product Reviews" 
+          />
+        </div>
+      )}
     </div>
   );
 }
+
+
+
+
+
+
 
 
 
