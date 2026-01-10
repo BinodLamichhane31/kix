@@ -20,3 +20,6 @@ router.get('/check/:productId', checkWishlist);
 export default router;
 
 
+
+
+

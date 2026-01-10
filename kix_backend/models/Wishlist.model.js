@@ -71,3 +71,6 @@ const Wishlist = mongoose.model('Wishlist', wishlistSchema);
 export default Wishlist;
 
 
+
+
+
