@@ -17,7 +17,7 @@ import { appRoutes } from '../utils/navigation';
 import { useAuth } from '../store/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import LogoutDialog from '../components/common/LogoutDialog';
-import Toast from '../components/common/Toast';
+import { Toast } from '../components/common/Toast';
 
 const adminNavItems = [
   { 
@@ -182,12 +182,14 @@ export default function AdminLayout() {
       />
 
       {/* Toast Notification */}
-      <Toast
-        message="Logged out successfully"
-        isVisible={showToast}
-        onClose={() => setShowToast(false)}
-        type="success"
-      />
+      {showToast && (
+        <Toast
+          message="Logged out successfully"
+          onClose={() => setShowToast(false)}
+          type="success"
+          duration={3000}
+        />
+      )}
     </div>
   );
 }
