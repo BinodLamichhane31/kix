@@ -1,30 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Lock, CreditCard, MapPin, User, Phone, Mail, Check } from 'lucide-react';
+import { ArrowLeft, Lock, CreditCard, MapPin, User, Phone, Mail, Check, Loader2 } from 'lucide-react';
 import { formatPrice } from '../../../utils/currency';
 import { appRoutes } from '../../../utils/navigation';
-
-// Mock cart data - in real app, this would come from context/state
-const mockCartItems = [
-  {
-    id: 'air-walker-v2',
-    name: 'Air Walker V2',
-    color: 'Arctic Grey',
-    size: 'EU 42',
-    price: 185,
-    qty: 1,
-    image: 'https://images.unsplash.com/photo-1542272604-787c3835535d?q=80&w=1200&auto=format&fit=crop',
-  },
-  {
-    id: 'nova-glide',
-    name: 'Nova Glide',
-    color: 'Midnight',
-    size: 'EU 40',
-    price: 165,
-    qty: 2,
-    image: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?q=80&w=1200&auto=format&fit=crop',
-  },
-];
+import * as cartService from '../../../services/api/cart.service';
+import * as orderService from '../../../services/api/order.service';
+import { useToast } from '../../../store/contexts/ToastContext';
+import { useCart } from '../../../store/contexts/CartContext';
 
 const shippingOptions = [
   { id: 'standard', label: 'Standard', description: '3-5 business days', price: 0 },
@@ -34,7 +16,11 @@ const shippingOptions = [
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
+  const { refreshCart } = useCart();
   const [step, setStep] = useState(1); // 1: Shipping, 2: Payment, 3: Review
+  const [cart, setCart] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [shippingMethod, setShippingMethod] = useState('standard');
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -59,13 +45,53 @@ export default function CheckoutPage() {
     cardName: '',
   });
 
-  const subtotal = mockCartItems.reduce((sum, item) => sum + item.price * item.qty, 0);
-  const shippingFee = shippingOptions.find((opt) => opt.id === shippingMethod)?.price ?? 0;
-  const total = subtotal + shippingFee;
+  useEffect(() => {
+    loadCart();
+  }, []);
 
-  const handleShippingSubmit = (e) => {
+  useEffect(() => {
+    if (cart && cart.shippingMethod) {
+      setShippingMethod(cart.shippingMethod);
+    }
+  }, [cart]);
+
+  const loadCart = async () => {
+    try {
+      setLoading(true);
+      const cartData = await cartService.getCart();
+      setCart(cartData);
+      
+      if (!cartData || !cartData.items || cartData.items.length === 0) {
+        // Redirect to cart if empty
+        navigate(appRoutes.cart);
+      }
+    } catch (error) {
+      console.error('Error loading cart:', error);
+      if (error.message.includes('Authentication')) {
+        navigate('/auth/sign-in');
+      } else {
+        navigate(appRoutes.cart);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const subtotal = cart?.subtotal ?? 0;
+  const shippingFee = cart?.shippingFee ?? (shippingOptions.find((opt) => opt.id === shippingMethod)?.price ?? 0);
+  const discount = cart?.discount ?? 0;
+  const total = cart?.total ?? (subtotal - discount + shippingFee);
+
+  const handleShippingSubmit = async (e) => {
     e.preventDefault();
-    setStep(2);
+    // Update shipping method in cart
+    try {
+      await cartService.updateShippingMethod(shippingMethod);
+      setStep(2);
+    } catch (error) {
+      console.error('Error updating shipping method:', error);
+      showToast('Failed to update shipping method', 'error');
+    }
   };
 
   const handlePaymentSubmit = (e) => {
@@ -82,11 +108,50 @@ export default function CheckoutPage() {
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     setIsProcessing(true);
-    // Simulate API call
-    setTimeout(() => {
+    
+    try {
+      // Prepare payment details (only store last 4 digits for security)
+      const paymentDetails = {};
+      if (paymentMethod === 'card' && paymentInfo.cardNumber) {
+        paymentDetails.cardLast4 = paymentInfo.cardNumber.replace(/\s/g, '').slice(-4);
+        paymentDetails.cardBrand = paymentInfo.cardNumber.startsWith('4') ? 'Visa' : 
+                                   paymentInfo.cardNumber.startsWith('5') ? 'Mastercard' : 'Unknown';
+      }
+
+      // Validate shipping address is complete
+      if (!shippingInfo.firstName || !shippingInfo.lastName || !shippingInfo.email || 
+          !shippingInfo.phone || !shippingInfo.address || !shippingInfo.city || 
+          !shippingInfo.postalCode || !shippingInfo.country) {
+        showToast('Please complete all shipping information', 'error');
+        setIsProcessing(false);
+        setStep(1);
+        return;
+      }
+
+      // Create order
+      const order = await orderService.createOrder({
+        shippingAddress: shippingInfo,
+        paymentMethod,
+        paymentDetails,
+        shippingMethod,
+        promoCode: cart?.promoCode || null,
+        notes: null,
+      });
+
+      // Refresh cart to clear it
+      refreshCart();
+
+      showToast('Order placed successfully!', 'success');
+      
+      // Redirect to order detail page
+      navigate(`/dashboard/orders/${order._id}`, {
+        state: { orderNumber: order.orderNumber },
+      });
+    } catch (error) {
+      console.error('Error placing order:', error);
+      showToast(error.message || 'Failed to place order. Please try again.', 'error');
       setIsProcessing(false);
-      navigate('/order-success'); // You can create this page later
-    }, 2000);
+    }
   };
 
   const updateShippingInfo = (field, value) => {
@@ -96,6 +161,21 @@ export default function CheckoutPage() {
   const updatePaymentInfo = (field, value) => {
     setPaymentInfo((prev) => ({ ...prev, [field]: value }));
   };
+
+  if (loading) {
+    return (
+      <section className="bg-gray-50 dark:bg-brand-black min-h-screen pt-24 pb-16 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 size={48} className="mx-auto animate-spin text-brand-black dark:text-brand-accent" />
+          <p className="text-gray-600 dark:text-gray-400">Loading checkout...</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (!cart || !cart.items || cart.items.length === 0) {
+    return null; // Will redirect in useEffect
+  }
 
   return (
     <section className="bg-gray-50 dark:bg-brand-black min-h-screen pt-24 pb-16 text-gray-900 dark:text-white">
@@ -277,6 +357,43 @@ export default function CheckoutPage() {
                       onChange={(e) => updateShippingInfo('country', e.target.value)}
                       className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-brand-black/40 px-4 py-2.5 text-sm focus:border-brand-black dark:focus:border-brand-accent focus:outline-none transition-colors"
                     />
+                  </div>
+                </div>
+
+                {/* Shipping Method Selection */}
+                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-white/10">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
+                    Shipping Method
+                  </h3>
+                  <div className="space-y-2">
+                    {shippingOptions.map((option) => (
+                      <label
+                        key={option.id}
+                        className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
+                          shippingMethod === option.id
+                            ? 'border-brand-black dark:border-brand-accent bg-brand-accent/5 dark:bg-brand-accent/10'
+                            : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="shippingMethod"
+                          value={option.id}
+                          checked={shippingMethod === option.id}
+                          onChange={(e) => setShippingMethod(e.target.value)}
+                          className="accent-brand-accent"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-semibold">{option.label}</p>
+                            <p className="text-sm font-bold">
+                              {option.price === 0 ? 'Free' : formatPrice(option.price)}
+                            </p>
+                          </div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{option.description}</p>
+                        </div>
+                      </label>
+                    ))}
                   </div>
                 </div>
 
@@ -550,20 +667,26 @@ export default function CheckoutPage() {
               <h2 className="text-xl font-bold">Order Summary</h2>
 
               <div className="space-y-3">
-                {mockCartItems.map((item) => (
-                  <div key={item.id} className="flex gap-3">
-                    <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-white/5 flex-shrink-0 overflow-hidden">
-                      <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                {cart.items.map((item) => {
+                  const product = item.product;
+                  const productImage = product?.image || '/placeholder-shoe.jpg';
+                  const productName = product?.name || 'Product';
+                  
+                  return (
+                    <div key={item._id} className="flex gap-3">
+                      <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-white/5 flex-shrink-0 overflow-hidden">
+                        <img src={productImage} alt={productName} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate">{productName}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {item.color} · {item.size} · Qty: {item.quantity}
+                        </p>
+                        <p className="text-sm font-bold mt-1">{formatPrice(item.price * item.quantity)}</p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{item.name}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {item.color} · {item.size} · Qty: {item.qty}
-                      </p>
-                      <p className="text-sm font-bold mt-1">{formatPrice(item.price * item.qty)}</p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="border-t border-gray-200 dark:border-white/10 pt-4 space-y-3 text-sm">
@@ -571,6 +694,12 @@ export default function CheckoutPage() {
                   <span>Subtotal</span>
                   <span className="font-medium">{formatPrice(subtotal)}</span>
                 </div>
+                {discount > 0 && (
+                  <div className="flex justify-between text-brand-accent font-semibold">
+                    <span>Discount</span>
+                    <span>-{formatPrice(discount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-gray-600 dark:text-gray-400">
                   <span>Shipping</span>
                   <span className="font-medium">

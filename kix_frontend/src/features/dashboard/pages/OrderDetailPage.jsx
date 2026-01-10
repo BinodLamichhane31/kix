@@ -1,11 +1,79 @@
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Package, MapPin, CreditCard, Truck, Calendar } from 'lucide-react';
-import { mockOrders, orderStatusMap } from '../data/dummyData';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Package, MapPin, CreditCard, Truck, Calendar, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import * as orderService from '../../../services/api/order.service';
 import { formatPrice } from '../../../utils/currency';
+import { useToast } from '../../../store/contexts/ToastContext';
+
+// Order status mapping
+const orderStatusMap = {
+  pending: {
+    label: 'Pending',
+    bgColor: 'bg-yellow-100 dark:bg-yellow-900/30',
+    textColor: 'text-yellow-700 dark:text-yellow-300',
+  },
+  confirmed: {
+    label: 'Confirmed',
+    bgColor: 'bg-blue-100 dark:bg-blue-900/30',
+    textColor: 'text-blue-700 dark:text-blue-300',
+  },
+  processing: {
+    label: 'Processing',
+    bgColor: 'bg-purple-100 dark:bg-purple-900/30',
+    textColor: 'text-purple-700 dark:text-purple-300',
+  },
+  shipped: {
+    label: 'Shipped',
+    bgColor: 'bg-indigo-100 dark:bg-indigo-900/30',
+    textColor: 'text-indigo-700 dark:text-indigo-300',
+  },
+  delivered: {
+    label: 'Delivered',
+    bgColor: 'bg-green-100 dark:bg-green-900/30',
+    textColor: 'text-green-700 dark:text-green-300',
+  },
+  cancelled: {
+    label: 'Cancelled',
+    bgColor: 'bg-red-100 dark:bg-red-900/30',
+    textColor: 'text-red-700 dark:text-red-300',
+  },
+};
 
 export default function OrderDetailPage() {
   const { id } = useParams();
-  const order = mockOrders.find((o) => o.id === id);
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadOrder();
+  }, [id]);
+
+  const loadOrder = async () => {
+    try {
+      setLoading(true);
+      const orderData = await orderService.getOrderById(id);
+      setOrder(orderData);
+    } catch (error) {
+      console.error('Error loading order:', error);
+      showToast(error.message || 'Failed to load order', 'error');
+      navigate('/dashboard/orders');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 size={48} className="mx-auto animate-spin text-brand-black dark:text-brand-accent" />
+          <p className="text-gray-600 dark:text-gray-400">Loading order...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!order) {
     return (
@@ -21,7 +89,25 @@ export default function OrderDetailPage() {
     );
   }
 
-  const status = orderStatusMap[order.status];
+  const status = orderStatusMap[order.status] || orderStatusMap.pending;
+  
+  // Transform order items for display
+  const transformOrderItem = (item) => {
+    const product = item.product || {};
+    const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050';
+    let image = item.productImage || product.image || '/placeholder-shoe.jpg';
+    if (image && image.startsWith('/uploads/')) {
+      image = `${API_BASE}${image}`;
+    }
+    return {
+      name: item.productName || product.name || 'Product',
+      color: item.color || 'N/A',
+      size: item.size || 'N/A',
+      price: item.price || 0,
+      qty: item.quantity || 1,
+      image,
+    };
+  };
 
   return (
     <div className="space-y-6">
@@ -37,7 +123,7 @@ export default function OrderDetailPage() {
           <h1 className="text-4xl font-black tracking-tight mb-1">{order.orderNumber}</h1>
           <p className="text-gray-500 dark:text-gray-400">
             Placed on{' '}
-            {new Date(order.date).toLocaleDateString('en-US', {
+            {new Date(order.createdAt || order.date).toLocaleDateString('en-US', {
               month: 'long',
               day: 'numeric',
               year: 'numeric',
@@ -60,42 +146,58 @@ export default function OrderDetailPage() {
           <div className="bg-white dark:bg-brand-gray rounded-2xl border border-gray-200 dark:border-white/10 p-6">
             <h2 className="text-xl font-bold mb-4">Order Items</h2>
             <div className="space-y-4">
-              {order.items.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-white/10"
-                >
-                  <div className="w-20 h-20 rounded-lg bg-gray-100 dark:bg-white/5 overflow-hidden flex-shrink-0">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-full h-full object-cover"
-                    />
+              {order.items?.map((item, idx) => {
+                const transformedItem = transformOrderItem(item);
+                return (
+                  <div
+                    key={item._id || idx}
+                    className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-white/10"
+                  >
+                    <div className="w-20 h-20 rounded-lg bg-gray-100 dark:bg-white/5 overflow-hidden flex-shrink-0">
+                      <img
+                        src={transformedItem.image}
+                        alt={transformedItem.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold mb-1">{transformedItem.name}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {transformedItem.color} · {transformedItem.size} · Quantity: {transformedItem.qty}
+                      </p>
+                      {item.customization && (
+                        <p className="text-xs text-brand-accent mt-1">Custom Design</p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold">{formatPrice(transformedItem.price * transformedItem.qty)}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {formatPrice(transformedItem.price)} each
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold mb-1">{item.name}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {item.color} · {item.size} · Quantity: {item.qty}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold">{formatPrice(item.price * item.qty)}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatPrice(item.price)} each
-                    </p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
-            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-white/10">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
-                <span className="font-semibold">
-                  {formatPrice(order.items.reduce((sum, item) => sum + item.price * item.qty, 0))}
-                </span>
-              </div>
+            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-white/10 space-y-2">
               <div className="flex justify-between items-center">
+                <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
+                <span className="font-semibold">{formatPrice(order.subtotal || 0)}</span>
+              </div>
+              {order.discount > 0 && (
+                <div className="flex justify-between items-center text-green-600 dark:text-green-400">
+                  <span>Discount</span>
+                  <span className="font-semibold">-{formatPrice(order.discount)}</span>
+                </div>
+              )}
+              {order.shippingFee > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600 dark:text-gray-400">Shipping</span>
+                  <span className="font-semibold">{formatPrice(order.shippingFee)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-white/10">
                 <span className="text-lg font-bold">Total</span>
                 <span className="text-2xl font-black">{formatPrice(order.total)}</span>
               </div>
@@ -138,7 +240,7 @@ export default function OrderDetailPage() {
                 <div>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Order Date</p>
                   <p className="text-sm font-semibold">
-                    {new Date(order.date).toLocaleDateString('en-US', {
+                    {new Date(order.createdAt || order.date).toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',
@@ -146,22 +248,6 @@ export default function OrderDetailPage() {
                   </p>
                 </div>
               </div>
-
-              {order.estimatedDelivery && (
-                <div className="flex items-center gap-3">
-                  <Truck size={18} className="text-gray-400" />
-                  <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Estimated Delivery</p>
-                    <p className="text-sm font-semibold">
-                      {new Date(order.estimatedDelivery).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </p>
-                  </div>
-                </div>
-              )}
 
               {order.deliveredAt && (
                 <div className="flex items-center gap-3">
@@ -181,7 +267,7 @@ export default function OrderDetailPage() {
 
               {order.trackingNumber && (
                 <div className="flex items-center gap-3">
-                  <Package size={18} className="text-gray-400" />
+                  <Truck size={18} className="text-gray-400" />
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Tracking Number</p>
                     <p className="text-sm font-semibold">{order.trackingNumber}</p>
@@ -202,8 +288,15 @@ export default function OrderDetailPage() {
                 ? 'Credit / Debit Card'
                 : order.paymentMethod === 'esewa'
                 ? 'eSewa'
-                : 'Cash on Delivery'}
+                : order.paymentMethod === 'cod'
+                ? 'Cash on Delivery'
+                : 'N/A'}
             </p>
+            {order.paymentStatus && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Status: <span className="font-semibold capitalize">{order.paymentStatus}</span>
+              </p>
+            )}
           </div>
         </div>
       </div>

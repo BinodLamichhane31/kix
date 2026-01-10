@@ -1,44 +1,141 @@
 import { Link } from 'react-router-dom';
-import { Package, TrendingUp, Heart, MapPin, ShoppingBag, ArrowRight, Eye } from 'lucide-react';
-import { mockDashboardStats, mockOrders, mockWishlist } from '../data/dummyData';
+import { Package, TrendingUp, Heart, MapPin, ShoppingBag, ArrowRight, Eye, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import * as dashboardService from '../../../services/api/dashboard.service';
+import * as orderService from '../../../services/api/order.service';
+import * as wishlistService from '../../../services/api/wishlist.service';
 import { formatPrice } from '../../../utils/currency';
 import { appRoutes } from '../../../utils/navigation';
-import { orderStatusMap } from '../data/dummyData';
+import { useToast } from '../../../store/contexts/ToastContext';
+
+// Order status mapping
+const orderStatusMap = {
+  pending: {
+    label: 'Pending',
+    bgColor: 'bg-yellow-100 dark:bg-yellow-900/30',
+    textColor: 'text-yellow-700 dark:text-yellow-300',
+  },
+  confirmed: {
+    label: 'Confirmed',
+    bgColor: 'bg-blue-100 dark:bg-blue-900/30',
+    textColor: 'text-blue-700 dark:text-blue-300',
+  },
+  processing: {
+    label: 'Processing',
+    bgColor: 'bg-purple-100 dark:bg-purple-900/30',
+    textColor: 'text-purple-700 dark:text-purple-300',
+  },
+  shipped: {
+    label: 'Shipped',
+    bgColor: 'bg-indigo-100 dark:bg-indigo-900/30',
+    textColor: 'text-indigo-700 dark:text-indigo-300',
+  },
+  delivered: {
+    label: 'Delivered',
+    bgColor: 'bg-green-100 dark:bg-green-900/30',
+    textColor: 'text-green-700 dark:text-green-300',
+  },
+  cancelled: {
+    label: 'Cancelled',
+    bgColor: 'bg-red-100 dark:bg-red-900/30',
+    textColor: 'text-red-700 dark:text-red-300',
+  },
+};
 
 export default function DashboardOverview() {
-  const recentOrders = mockOrders.slice(0, 3);
-  const recentWishlist = mockWishlist.slice(0, 3);
+  const { showToast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalOrders: 0,
+    pendingOrders: 0,
+    totalSpent: 0,
+    wishlistItems: 0,
+  });
+  const [recentOrders, setRecentOrders] = useState([]);
+  const [recentWishlist, setRecentWishlist] = useState([]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load stats
+      const statsData = await dashboardService.getUserStats();
+      setStats(statsData);
+
+      // Load recent orders
+      const ordersResponse = await orderService.getOrders({ limit: 3 });
+      setRecentOrders(ordersResponse.data || []);
+
+      // Load recent wishlist items
+      const wishlistData = await wishlistService.getWishlist();
+      const wishlistItems = wishlistData.items || [];
+      setRecentWishlist(wishlistItems.slice(0, 3));
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      showToast('Failed to load dashboard data', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const transformOrderItem = (item) => {
+    const product = item.product || {};
+    const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050';
+    let image = item.productImage || product.image || '/placeholder-shoe.jpg';
+    if (image && image.startsWith('/uploads/')) {
+      image = `${API_BASE}${image}`;
+    }
+    return {
+      name: item.productName || product.name || 'Product',
+      image,
+    };
+  };
 
   const statCards = [
     {
       id: 'total-orders',
       label: 'Total Orders',
-      value: mockDashboardStats.totalOrders,
+      value: stats.totalOrders,
       icon: Package,
       color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
     },
     {
       id: 'pending-orders',
       label: 'Pending Orders',
-      value: mockDashboardStats.pendingOrders,
+      value: stats.pendingOrders,
       icon: ShoppingBag,
       color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
     },
     {
       id: 'total-spent',
       label: 'Total Spent',
-      value: formatPrice(mockDashboardStats.totalSpent),
+      value: formatPrice(stats.totalSpent),
       icon: TrendingUp,
       color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
     },
     {
       id: 'wishlist',
       label: 'Wishlist Items',
-      value: mockDashboardStats.wishlistItems,
+      value: stats.wishlistItems,
       icon: Heart,
       color: 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300',
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 size={48} className="mx-auto animate-spin text-brand-black dark:text-brand-accent" />
+          <p className="text-gray-600 dark:text-gray-400">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -90,18 +187,19 @@ export default function DashboardOverview() {
           {recentOrders.length > 0 ? (
             <div className="space-y-4">
               {recentOrders.map((order) => {
-                const status = orderStatusMap[order.status];
+                const status = orderStatusMap[order.status] || orderStatusMap.pending;
+                const orderId = order._id || order.id;
                 return (
                   <Link
-                    key={order.id}
-                    to={`/dashboard/orders/${order.id}`}
+                    key={orderId}
+                    to={`/dashboard/orders/${orderId}`}
                     className="block p-4 rounded-xl border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 transition-colors"
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <p className="font-semibold">{order.orderNumber}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {new Date(order.date).toLocaleDateString('en-US', {
+                          {new Date(order.createdAt || order.date).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric',
@@ -115,19 +213,22 @@ export default function DashboardOverview() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 mt-3">
-                      {order.items.slice(0, 3).map((item, idx) => (
-                        <div
-                          key={idx}
-                          className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-white/5 overflow-hidden flex-shrink-0"
-                        >
-                          <img
-                            src={item.image}
-                            alt={item.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ))}
-                      {order.items.length > 3 && (
+                      {order.items?.slice(0, 3).map((item, idx) => {
+                        const transformedItem = transformOrderItem(item);
+                        return (
+                          <div
+                            key={item._id || idx}
+                            className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-white/5 overflow-hidden flex-shrink-0"
+                          >
+                            <img
+                              src={transformedItem.image}
+                              alt={transformedItem.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        );
+                      })}
+                      {order.items && order.items.length > 3 && (
                         <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center text-xs font-semibold text-gray-500 dark:text-gray-400">
                           +{order.items.length - 3}
                         </div>
@@ -161,38 +262,47 @@ export default function DashboardOverview() {
 
           {recentWishlist.length > 0 ? (
             <div className="space-y-4">
-              {recentWishlist.map((item) => (
-                <Link
-                  key={item.id}
-                  to={`${appRoutes.product(item.productId)}`}
-                  className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 transition-colors"
-                >
-                  <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-white/5 overflow-hidden flex-shrink-0">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold truncate">{item.name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{item.color}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="text-sm font-bold">{formatPrice(item.price)}</p>
-                      {item.originalPrice && (
-                        <p className="text-xs text-gray-400 line-through">
-                          {formatPrice(item.originalPrice)}
-                        </p>
-                      )}
+              {recentWishlist.map((item) => {
+                const product = item.product || {};
+                const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5050';
+                let image = product.image || '/placeholder-shoe.jpg';
+                if (image && image.startsWith('/uploads/')) {
+                  image = `${API_BASE}${image}`;
+                }
+                const productSlug = product.slug || '';
+                return (
+                  <Link
+                    key={item._id || item.id}
+                    to={productSlug ? `/product/${productSlug}` : '#'}
+                    className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 transition-colors"
+                  >
+                    <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-white/5 overflow-hidden flex-shrink-0">
+                      <img
+                        src={image}
+                        alt={product.name || 'Product'}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
-                  </div>
-                  {!item.inStock && (
-                    <span className="px-2 py-1 rounded text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
-                      Out of Stock
-                    </span>
-                  )}
-                </Link>
-              ))}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">{product.name || 'Product'}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{product.category || ''}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-sm font-bold">{formatPrice(product.price || 0)}</p>
+                        {product.originalPrice && (
+                          <p className="text-xs text-gray-400 line-through">
+                            {formatPrice(product.originalPrice)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {!product.inStock && (
+                      <span className="px-2 py-1 rounded text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
+                        Out of Stock
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">

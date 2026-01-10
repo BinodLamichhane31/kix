@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { shopService } from '../data/dummyProducts';
+import * as productService from '../../../services/api/product.service';
 import { ProductCard } from './ProductCard';
 
 export function RelatedSneakers({ category, excludeSlug, title = 'Related sneakers' }) {
@@ -11,17 +11,26 @@ export function RelatedSneakers({ category, excludeSlug, title = 'Related sneake
     let active = true;
     async function load() {
       setLoading(true);
-      const data = await shopService.getRelatedProducts({
-        category,
-        excludeSlug,
-        limit: 4,
-      });
-      if (active) {
-        setItems(data);
-        setLoading(false);
+      try {
+        const data = await productService.getRelatedProducts({ category, excludeSlug, limit: 4 });
+        if (active) {
+          setItems(data || []);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error loading related products:', error);
+        if (active) {
+          setItems([]);
+          setLoading(false);
+        }
       }
     }
-    load();
+    if (excludeSlug) {
+      load();
+    } else {
+      setItems([]);
+      setLoading(false);
+    }
     return () => {
       active = false;
     };

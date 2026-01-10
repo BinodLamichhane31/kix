@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Suspense } from 'react';
 import { ArrowLeft, Loader2, RotateCcw, ShoppingBag, Save, Zap, ChevronLeft, ChevronRight, X, Check, Menu } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import ShoeViewer from '../components/ShoeViewer';
 import { appRoutes } from '../../../utils/navigation';
 import { formatPrice } from '../../../utils/currency';
+import * as designService from '../../../services/api/design.service';
+import { useAuth } from '../../../store/contexts/AuthContext';
+import { useToast } from '../../../store/contexts/ToastContext';
+import { DesignNameModal } from '../../../components/common/DesignNameModal';
 
 // Parts and default colors aligned with the provided customization code
 const initialColors = {
@@ -70,12 +74,41 @@ const colorSwatches = [
 ];
 
 export default function CustomizeSneaker() {
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const designId = searchParams.get('designId');
+  
   const [colors, setColors] = useState(initialColors);
   const [activePartIndex, setActivePartIndex] = useState(0);
+  const [selectedPart, setSelectedPart] = useState(null); // Track selected part from 3D model
   const [selectedBaseModel, setSelectedBaseModel] = useState(baseModels[0]);
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [showPartMenu, setShowPartMenu] = useState(false);
-  const navigate = useNavigate();
+  const [saving, setSaving] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const { showToast } = useToast();
+  
+  // Load design if designId is provided
+  useEffect(() => {
+    if (designId && isAuthenticated) {
+      loadDesign(designId);
+    }
+  }, [designId, isAuthenticated]);
+  
+  const loadDesign = async (id) => {
+    try {
+      const design = await designService.getDesignById(id);
+      if (design) {
+        setColors(design.colors);
+        // Find matching base model
+        const model = baseModels.find(m => m.id === design.baseModel.id) || baseModels[0];
+        setSelectedBaseModel(model);
+      }
+    } catch (error) {
+      console.error('Error loading design:', error);
+    }
+  };
 
   const handleColorChange = (part, color) => {
     setColors((prev) => ({
@@ -84,13 +117,55 @@ export default function CustomizeSneaker() {
     }));
   };
 
+  const handlePartSelect = (partKey) => {
+    // Find the index of the selected part
+    const partIndex = allParts.findIndex((p) => p.key === partKey);
+    if (partIndex !== -1) {
+      setActivePartIndex(partIndex);
+      setSelectedPart(partKey);
+      // Clear selection after a short delay for visual feedback
+      setTimeout(() => setSelectedPart(null), 500);
+    }
+  };
+
   const handleReset = () => {
     setColors(initialColors);
   };
 
   const handleSave = () => {
-    console.log('Saving design...', { colors, baseModel: selectedBaseModel });
-    alert('Design saved!');
+    if (!isAuthenticated) {
+      navigate('/auth/sign-in');
+      return;
+    }
+    setShowSaveModal(true);
+  };
+
+  const handleSaveDesign = async (designName) => {
+    try {
+      setSaving(true);
+      setShowSaveModal(false);
+
+      const designData = {
+        name: designName,
+        description: `Custom ${selectedBaseModel.name} design`,
+        baseModel: {
+          id: selectedBaseModel.id,
+          name: selectedBaseModel.name,
+          image: selectedBaseModel.image,
+        },
+        colors,
+        status: 'draft',
+        tags: [],
+      };
+
+      await designService.createDesign(designData);
+      showToast('Design saved successfully!', 'success');
+    } catch (error) {
+      console.error('Error saving design:', error);
+      showToast(error.message || 'Failed to save design. Please try again.', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleChooseBaseModel = () => {
@@ -102,14 +177,16 @@ export default function CustomizeSneaker() {
     setShowModelSelector(false);
   };
 
-  const handleDirectlyBuy = () => {
-    console.log('Directly buying...', { colors, baseModel: selectedBaseModel });
-    navigate(appRoutes.checkout);
+  const handleDirectlyBuy = async () => {
+    // This would need a product ID - for now, just navigate to customize page
+    // In a real implementation, you'd create a product from the design first
+    showToast('Please add this design to cart first, then proceed to checkout', 'info');
   };
 
-  const handleAddToCart = () => {
-    console.log('Adding to cart...', { colors, baseModel: selectedBaseModel });
-    alert('Added to cart!');
+  const handleAddToCart = async () => {
+    // This would need to create a product from the design
+    // For now, show a message
+    showToast('Custom designs need to be saved first. Please save your design.', 'info');
   };
 
   const nextPart = () => {
@@ -144,10 +221,20 @@ export default function CustomizeSneaker() {
           </div>
           <button
             onClick={handleSave}
-            className="px-6 py-2 bg-brand-black dark:bg-brand-accent text-white dark:text-brand-black rounded-xl font-bold hover:bg-brand-accent dark:hover:bg-white transition-colors flex items-center gap-2"
+            disabled={saving}
+            className="px-6 py-2 bg-brand-black dark:bg-brand-accent text-white dark:text-brand-black rounded-xl font-bold hover:bg-brand-accent dark:hover:bg-white transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Save size={18} />
-            Save
+            {saving ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save size={18} />
+                Save
+              </>
+            )}
           </button>
         </div>
 
@@ -166,7 +253,11 @@ export default function CustomizeSneaker() {
                   </div>
                 }
               >
-                <ShoeViewer colors={colors} />
+                <ShoeViewer 
+                  colors={colors} 
+                  selectedPart={selectedPart || currentPart.key}
+                  onPartSelect={handlePartSelect}
+                />
               </Suspense>
             </div>
           </div>
@@ -216,6 +307,11 @@ export default function CustomizeSneaker() {
                     <div className="text-sm font-semibold text-brand-black dark:text-white">
                       {currentColor.toUpperCase()}
                     </div>
+                    {selectedPart === currentPart.key && (
+                      <div className="text-xs text-brand-accent mt-1 animate-pulse">
+                        ✓ Selected from 3D model
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -424,6 +520,14 @@ export default function CustomizeSneaker() {
           </div>
         </div>
       )}
+
+      {/* Design Name Modal */}
+      <DesignNameModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        onSave={handleSaveDesign}
+        defaultName={`My ${selectedBaseModel.name} Design`}
+      />
     </div>
   );
 }

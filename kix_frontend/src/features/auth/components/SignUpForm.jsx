@@ -4,7 +4,7 @@ import { Eye, EyeOff, Mail, Lock, User, Loader2, AlertCircle, CheckCircle2 } fro
 import { useAuth } from '../../../store/contexts/AuthContext';
 import { appRoutes } from '../../../utils/navigation';
 import { apiRequest } from '../../../services/api/client';
-import Toast from '../../../components/common/Toast';
+import { Toast } from '../../../components/common/Toast';
 
 export function SignUpForm() {
   const navigate = useNavigate();
@@ -443,12 +443,14 @@ export function SignUpForm() {
       </p>
 
       {/* Success Toast */}
-      <Toast
-        message="Account created successfully! Welcome to KIX."
-        isVisible={showToast}
-        onClose={() => setShowToast(false)}
-        type="success"
-      />
+      {showToast && (
+        <Toast
+          message="Account created successfully! Welcome to KIX."
+          onClose={() => setShowToast(false)}
+          type="success"
+          duration={3000}
+        />
+      )}
     </form>
   );
 }

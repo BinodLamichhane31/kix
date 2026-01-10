@@ -4,7 +4,7 @@ import { Eye, EyeOff, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../../store/contexts/AuthContext';
 import { appRoutes } from '../../../utils/navigation';
 import { apiRequest } from '../../../services/api/client';
-import Toast from '../../../components/common/Toast';
+import { Toast } from '../../../components/common/Toast';
 
 export function SignInForm() {
   const navigate = useNavigate();
@@ -286,12 +286,14 @@ export function SignInForm() {
       </p>
 
       {/* Success Toast */}
-      <Toast
-        message="Login successful! Welcome back."
-        isVisible={showToast}
-        onClose={() => setShowToast(false)}
-        type="success"
-      />
+      {showToast && (
+        <Toast
+          message="Login successful! Welcome back."
+          onClose={() => setShowToast(false)}
+          type="success"
+          duration={3000}
+        />
+      )}
     </form>
   );
 }
