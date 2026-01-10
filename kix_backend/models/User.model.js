@@ -1,6 +1,66 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
+// Address subdocument schema
+const addressSchema = new mongoose.Schema({
+  label: {
+    type: String,
+    required: [true, 'Address label is required'],
+    trim: true,
+  },
+  firstName: {
+    type: String,
+    required: [true, 'First name is required'],
+    trim: true,
+  },
+  lastName: {
+    type: String,
+    required: [true, 'Last name is required'],
+    trim: true,
+  },
+  email: {
+    type: String,
+    trim: true,
+    lowercase: true,
+  },
+  phone: {
+    type: String,
+    required: [true, 'Phone number is required'],
+    trim: true,
+  },
+  address: {
+    type: String,
+    required: [true, 'Address is required'],
+    trim: true,
+  },
+  landmark: {
+    type: String,
+    trim: true,
+  },
+  city: {
+    type: String,
+    required: [true, 'City is required'],
+    trim: true,
+  },
+  postalCode: {
+    type: String,
+    required: [true, 'Postal code is required'],
+    trim: true,
+  },
+  country: {
+    type: String,
+    required: [true, 'Country is required'],
+    trim: true,
+    default: 'Nepal',
+  },
+  isDefault: {
+    type: Boolean,
+    default: false,
+  },
+}, {
+  timestamps: true,
+});
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -31,6 +91,10 @@ const userSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    addresses: {
+      type: [addressSchema],
+      default: [],
     },
   },
   {

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Lock, CreditCard, MapPin, User, Phone, Mail, Check, Loader2 } from 'lucide-react';
+import { ArrowLeft, Lock, CreditCard, MapPin, User, Phone, Mail, Check, Loader2, Plus } from 'lucide-react';
 import { formatPrice } from '../../../utils/currency';
 import { appRoutes } from '../../../utils/navigation';
 import * as cartService from '../../../services/api/cart.service';
 import * as orderService from '../../../services/api/order.service';
+import * as addressService from '../../../services/api/address.service';
 import { useToast } from '../../../store/contexts/ToastContext';
 import { useCart } from '../../../store/contexts/CartContext';
 
@@ -21,6 +22,9 @@ export default function CheckoutPage() {
   const [step, setStep] = useState(1); // 1: Shipping, 2: Payment, 3: Review
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [addresses, setAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
+  const [useSavedAddress, setUseSavedAddress] = useState(false);
   const [shippingMethod, setShippingMethod] = useState('standard');
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -47,6 +51,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     loadCart();
+    loadAddresses();
   }, []);
 
   useEffect(() => {
@@ -54,6 +59,18 @@ export default function CheckoutPage() {
       setShippingMethod(cart.shippingMethod);
     }
   }, [cart]);
+
+  useEffect(() => {
+    // Auto-select default address if available
+    if (addresses.length > 0 && !selectedAddressId) {
+      const defaultAddress = addresses.find(addr => addr.isDefault) || addresses[0];
+      if (defaultAddress) {
+        setSelectedAddressId(defaultAddress._id);
+        setUseSavedAddress(true);
+        fillFormFromAddress(defaultAddress);
+      }
+    }
+  }, [addresses]);
 
   const loadCart = async () => {
     try {
@@ -75,6 +92,45 @@ export default function CheckoutPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadAddresses = async () => {
+    try {
+      const data = await addressService.getAddresses();
+      setAddresses(data || []);
+    } catch (error) {
+      console.error('Error loading addresses:', error);
+      // Don't show error toast here - addresses are optional
+    }
+  };
+
+  const fillFormFromAddress = (address) => {
+    setShippingInfo({
+      firstName: address.firstName || '',
+      lastName: address.lastName || '',
+      email: address.email || '',
+      phone: address.phone || '',
+      address: address.address || '',
+      landmark: address.landmark || '',
+      city: address.city || '',
+      postalCode: address.postalCode || '',
+      country: address.country || 'Nepal',
+    });
+  };
+
+  const handleAddressSelect = (addressId) => {
+    setSelectedAddressId(addressId);
+    setUseSavedAddress(true);
+    const address = addresses.find(addr => addr._id === addressId);
+    if (address) {
+      fillFormFromAddress(address);
+    }
+  };
+
+  const handleUseManualAddress = () => {
+    setUseSavedAddress(false);
+    setSelectedAddressId(null);
+    // Keep current form values
   };
 
   const subtotal = cart?.subtotal ?? 0;
@@ -226,12 +282,98 @@ export default function CheckoutPage() {
             {step === 1 && (
               <form onSubmit={handleShippingSubmit} className="space-y-6">
                 <div className="bg-white dark:bg-brand-gray rounded-2xl border border-gray-200 dark:border-white/10 p-6 space-y-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-lg bg-brand-accent/20 dark:bg-brand-accent/30 flex items-center justify-center">
-                      <MapPin size={18} className="text-brand-black dark:text-brand-black" />
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-brand-accent/20 dark:bg-brand-accent/30 flex items-center justify-center">
+                        <MapPin size={18} className="text-brand-black dark:text-brand-black" />
+                      </div>
+                      <h2 className="text-xl font-bold">Shipping Address</h2>
                     </div>
-                    <h2 className="text-xl font-bold">Shipping Address</h2>
+                    {addresses.length > 0 && (
+                      <Link
+                        to={appRoutes.dashboard.addresses}
+                        className="text-sm font-semibold text-brand-black dark:text-brand-accent hover:underline flex items-center gap-1"
+                      >
+                        <Plus size={16} />
+                        Manage Addresses
+                      </Link>
+                    )}
                   </div>
+
+                  {/* Saved Addresses Selection */}
+                  {addresses.length > 0 && (
+                    <div className="mb-6 pb-6 border-b border-gray-200 dark:border-white/10">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
+                        Select Saved Address
+                      </label>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {addresses.map((address) => (
+                          <label
+                            key={address._id}
+                            className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
+                              useSavedAddress && selectedAddressId === address._id
+                                ? 'border-brand-black dark:border-brand-accent bg-brand-accent/5 dark:bg-brand-accent/10'
+                                : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="savedAddress"
+                              checked={useSavedAddress && selectedAddressId === address._id}
+                              onChange={() => handleAddressSelect(address._id)}
+                              className="mt-1 accent-brand-accent"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="text-sm font-semibold">{address.label}</p>
+                                {address.isDefault && (
+                                  <span className="text-xs font-semibold text-brand-black dark:text-brand-accent bg-brand-accent/10 dark:bg-brand-accent/20 px-2 py-0.5 rounded">
+                                    Default
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400 space-y-0.5">
+                                <p>{address.firstName} {address.lastName}</p>
+                                <p>{address.address}{address.landmark && `, Near: ${address.landmark}`}</p>
+                                <p>{address.city}, {address.postalCode}, {address.country}</p>
+                                <p>{address.phone}</p>
+                              </div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                      
+                      {useSavedAddress && (
+                        <button
+                          type="button"
+                          onClick={handleUseManualAddress}
+                          className="mt-3 text-sm font-semibold text-brand-black dark:text-brand-accent hover:underline"
+                        >
+                          + Enter New Address
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {(!useSavedAddress || addresses.length === 0) && addresses.length > 0 && (
+                    <div className="mb-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const defaultAddress = addresses.find(addr => addr.isDefault) || addresses[0];
+                          if (defaultAddress) {
+                            handleAddressSelect(defaultAddress._id);
+                          }
+                        }}
+                        className="text-sm font-semibold text-brand-black dark:text-brand-accent hover:underline"
+                      >
+                        ← Use Saved Address
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Manual Address Form - Always visible but can be pre-filled */}
+                  <div className={useSavedAddress && addresses.length > 0 ? 'opacity-75' : ''}>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -357,6 +499,7 @@ export default function CheckoutPage() {
                       onChange={(e) => updateShippingInfo('country', e.target.value)}
                       className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-brand-black/40 px-4 py-2.5 text-sm focus:border-brand-black dark:focus:border-brand-accent focus:outline-none transition-colors"
                     />
+                  </div>
                   </div>
                 </div>
 
