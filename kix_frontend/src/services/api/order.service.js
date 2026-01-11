@@ -204,6 +204,47 @@ export const updateOrderStatus = async (orderId, status, trackingNumber = null) 
   }
 };
 
+/**
+ * Initiate eSewa payment for an order
+ */
+export const initiateEsewaPayment = async (orderId) => {
+  try {
+    const response = await apiRequest(`/orders/${orderId}/payment/esewa/initiate`, {
+      method: 'POST',
+    });
+    
+    if (response.success) {
+      return response.data;
+    }
+    
+    throw new Error(response.message || 'Failed to initiate eSewa payment');
+  } catch (error) {
+    console.error('Error initiating eSewa payment:', error);
+    throw error;
+  }
+};
+
+/**
+ * Verify eSewa payment manually (for retry scenarios)
+ */
+export const verifyEsewaPayment = async (orderId) => {
+  try {
+    const response = await apiRequest(`/orders/${orderId}/payment/esewa/verify`, {
+      method: 'POST',
+    });
+    
+    if (response.success) {
+      return response.data;
+    }
+    
+    throw new Error(response.message || 'Payment verification failed');
+  } catch (error) {
+    console.error('Error verifying eSewa payment:', error);
+    throw error;
+  }
+};
+
+
 
 
 

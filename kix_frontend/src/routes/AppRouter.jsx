@@ -13,6 +13,7 @@ import CustomizationPage from '../features/customize/pages/CustomizationPage'
 import CustomizeSneaker from '../features/customize/pages/CustomizeSneaker'
 import CartPage from '../features/shop/pages/CartPage'
 import CheckoutPage from '../features/shop/pages/CheckoutPage'
+import PaymentCallbackPage from '../features/shop/pages/PaymentCallbackPage'
 import DashboardOverview from '../features/dashboard/pages/DashboardOverview'
 import OrdersPage from '../features/dashboard/pages/OrdersPage'
 import OrderDetailPage from '../features/dashboard/pages/OrderDetailPage'
@@ -45,6 +46,7 @@ export default function AppRouter() {
           <Route path="product/:slug" element={<ProductDetailPage />} />
           <Route path="cart" element={<CartPage />} />
           <Route path="checkout" element={<CheckoutPage />} />
+          <Route path="payment/callback" element={<PaymentCallbackPage />} />
           <Route path="auth/sign-in" element={<SignInPage />} />
           <Route path="auth/sign-up" element={<SignUpPage />} />
           <Route path="auth/google/callback" element={<GoogleCallbackPage />} />

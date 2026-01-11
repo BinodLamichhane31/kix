@@ -150,9 +150,16 @@ export default function CheckoutPage() {
     }
   };
 
-  const handlePaymentSubmit = (e) => {
+  const handlePaymentSubmit = async (e) => {
     e.preventDefault();
-    // Only validate card fields if card payment is selected
+    
+    // For eSewa, we need to create order first and then redirect to payment
+    if (paymentMethod === 'esewa') {
+      await handleEsewaPaymentFlow(e);
+      return;
+    }
+    
+    // For card and COD, continue to review step
     if (paymentMethod === 'card') {
       if (!paymentInfo.cardNumber || !paymentInfo.cardName || !paymentInfo.expiryDate || !paymentInfo.cvv) {
         return; // Form validation will handle this
@@ -161,11 +168,84 @@ export default function CheckoutPage() {
     setStep(3);
   };
 
+  const handleEsewaPaymentFlow = async (e) => {
+    e.preventDefault();
+    setIsProcessing(true);
+
+    try {
+      // Validate shipping address is complete
+      if (!shippingInfo.firstName || !shippingInfo.lastName || !shippingInfo.email || 
+          !shippingInfo.phone || !shippingInfo.address || !shippingInfo.city || 
+          !shippingInfo.postalCode || !shippingInfo.country) {
+        showToast('Please complete all shipping information', 'error');
+        setIsProcessing(false);
+        setStep(1);
+        return;
+      }
+
+      // Step 1: Create order with PENDING payment status
+      // Note: Frontend does NOT calculate totals - backend does this
+      const order = await orderService.createOrder({
+        shippingAddress: shippingInfo,
+        paymentMethod: 'esewa',
+        shippingMethod,
+        promoCode: cart?.promoCode || null,
+        notes: null,
+      });
+
+      if (!order || !order._id) {
+        throw new Error('Failed to create order');
+      }
+
+      // Step 2: Initiate eSewa payment (backend generates transaction ID and payment URL)
+      const paymentData = await orderService.initiateEsewaPayment(order._id);
+
+      if (!paymentData || !paymentData.paymentUrl || !paymentData.formData) {
+        throw new Error('Failed to initiate payment');
+      }
+
+      // Step 3: Submit form to eSewa (auto-redirect)
+      // Create a form and submit it programmatically
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = paymentData.paymentUrl;
+      form.style.display = 'none';
+
+      // Add all form data fields
+      Object.keys(paymentData.formData).forEach(key => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = paymentData.formData[key];
+        form.appendChild(input);
+      });
+
+      document.body.appendChild(form);
+      form.submit();
+
+      // Note: User will be redirected to eSewa, then back to our callback page
+      // Show loading message while redirecting
+      showToast('Redirecting to eSewa payment...', 'info');
+
+    } catch (error) {
+      console.error('Error processing eSewa payment:', error);
+      showToast(error.message || 'Failed to process payment. Please try again.', 'error');
+      setIsProcessing(false);
+    }
+  };
+
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     setIsProcessing(true);
     
     try {
+      // Safety check: eSewa should not reach this function
+      if (paymentMethod === 'esewa') {
+        showToast('eSewa payment should be handled separately', 'error');
+        setIsProcessing(false);
+        return;
+      }
+
       // Prepare payment details (only store last 4 digits for security)
       const paymentDetails = {};
       if (paymentMethod === 'card' && paymentInfo.cardNumber) {

@@ -5,6 +5,7 @@ export const appRoutes = {
   customizeSneaker: '/customize/sneaker',
   cart: '/cart',
   checkout: '/checkout',
+  paymentCallback: '/payment/callback',
   product: (slug = ':slug') => `/product/${slug}`,
   dashboard: {
     root: '/dashboard',
