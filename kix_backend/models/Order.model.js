@@ -143,14 +143,29 @@ const orderSchema = new mongoose.Schema(
     },
     paymentStatus: {
       type: String,
-      enum: ['pending', 'paid', 'failed', 'refunded'],
+      enum: ['pending', 'paid', 'failed', 'refunded', 'cancelled'],
       default: 'pending',
     },
     paymentDetails: {
       // Store minimal payment info (last 4 digits, etc.)
       cardLast4: String,
       cardBrand: String,
-      transactionId: String,
+      // eSewa transaction details
+      esewaTransactionId: {
+        type: String,
+        unique: true,
+        sparse: true, // Allow null values while maintaining uniqueness
+      },
+      esewaProductCode: String,
+      esewaReferenceId: String,
+      esewaAmount: Number, // Locked amount at payment initiation
+      // Verification tracking
+      verifiedAt: Date,
+      verificationAttempts: {
+        type: Number,
+        default: 0,
+      },
+      lastVerificationAttempt: Date,
     },
     shippingMethod: {
       type: String,
@@ -167,20 +182,24 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       required: [true, 'Subtotal is required'],
       min: [0, 'Subtotal cannot be negative'],
+      immutable: true, // Locked once set
     },
     discount: {
       type: Number,
       default: 0,
       min: [0, 'Discount cannot be negative'],
+      immutable: true, // Locked once set
     },
     promoCode: {
       type: String,
       default: null,
+      immutable: true, // Locked once set
     },
     total: {
       type: Number,
       required: [true, 'Total is required'],
       min: [0, 'Total cannot be negative'],
+      immutable: true, // Locked once set
     },
     status: {
       type: String,
@@ -204,12 +223,14 @@ const orderSchema = new mongoose.Schema(
   }
 );
 
-// Indexes
+// Indexes for performance
 orderSchema.index({ user: 1 });
 orderSchema.index({ orderNumber: 1 });
 orderSchema.index({ status: 1 });
 orderSchema.index({ createdAt: -1 });
 orderSchema.index({ paymentStatus: 1 });
+orderSchema.index({ 'paymentDetails.esewaTransactionId': 1 }, { unique: true, sparse: true });
+orderSchema.index({ 'paymentDetails.esewaReferenceId': 1 });
 
 // Static method to generate order number
 orderSchema.statics.generateOrderNumber = function () {
@@ -237,9 +258,30 @@ orderSchema.pre('save', async function (next) {
   next();
 });
 
+// Pre-save middleware to prevent modification of financial fields
+// Note: This middleware runs BEFORE validation, so we need to check modified paths
+orderSchema.pre('save', function (next) {
+  if (!this.isNew) {
+    // Prevent modification of immutable financial fields after order creation
+    const financialFields = ['subtotal', 'discount', 'promoCode', 'total', 'shippingFee'];
+    const modifiedFields = this.modifiedPaths();
+    
+    for (const field of modifiedFields) {
+      if (financialFields.includes(field)) {
+        // Check if the change is actually different (allows setting same value)
+        if (this.isModified(field)) {
+          return next(new Error(`Cannot modify ${field} after order creation. This field is immutable.`));
+        }
+      }
+    }
+  }
+  next();
+});
+
 const Order = mongoose.model('Order', orderSchema);
 
 export default Order;
+
 
 
 
