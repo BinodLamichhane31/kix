@@ -125,16 +125,16 @@ export default function ShoeViewer({ colors, selectedPart, onPartSelect }) {
             // Don't throw, let ErrorBoundary handle it
           }}
         >
-          {/* Optimized Lighting */}
-          <ambientLight intensity={0.6} />
+          {/* Optimized Lighting - adjusted for better color accuracy */}
+          <ambientLight intensity={0.7} />
           <directionalLight
             position={[10, 10, 5]}
-            intensity={1.2}
+            intensity={1.0}
             castShadow={false}
           />
           <directionalLight
             position={[-10, 5, -5]}
-            intensity={0.6}
+            intensity={0.4}
           />
           
           {/* Simplified Environment - removed to reduce memory */}

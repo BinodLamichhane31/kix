@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -28,6 +28,19 @@ export default function ShoeModel({ colors, selectedPart, onPartSelect }) {
   }
   
   const { nodes, materials } = useGLTF('/models/SneakerModel.glb');
+
+  // Clone materials to ensure each part has its own independent state.
+  // This prevents the issue where changing one part's color affects another 
+  // because they share the same material object in the GLTF.
+  const uniqueMaterials = useMemo(() => {
+    const clones = {};
+    if (materials) {
+      Object.keys(materials).forEach((key) => {
+        clones[key] = materials[key].clone();
+      });
+    }
+    return clones;
+  }, [materials]);
 
   // Handle WebGL context loss and cleanup
   useEffect(() => {
@@ -109,14 +122,14 @@ export default function ShoeModel({ colors, selectedPart, onPartSelect }) {
 
   // Mesh configurations
   const meshConfigs = [
-    { node: nodes.shoe, material: materials.laces, part: 'laces' },
-    { node: nodes.shoe_1, material: materials.mesh, part: 'mesh' },
-    { node: nodes.shoe_2, material: materials.caps, part: 'caps' },
-    { node: nodes.shoe_3, material: materials.inner, part: 'inner' },
-    { node: nodes.shoe_4, material: materials.sole, part: 'sole' },
-    { node: nodes.shoe_5, material: materials.stripes, part: 'stripes' },
-    { node: nodes.shoe_6, material: materials.band, part: 'band' },
-    { node: nodes.shoe_7, material: materials.patch, part: 'patch' },
+    { node: nodes.shoe, material: uniqueMaterials.laces, part: 'laces' },
+    { node: nodes.shoe_1, material: uniqueMaterials.mesh, part: 'mesh' },
+    { node: nodes.shoe_2, material: uniqueMaterials.caps, part: 'caps' },
+    { node: nodes.shoe_3, material: uniqueMaterials.inner, part: 'inner' },
+    { node: nodes.shoe_4, material: uniqueMaterials.sole, part: 'sole' },
+    { node: nodes.shoe_5, material: uniqueMaterials.stripes, part: 'stripes' },
+    { node: nodes.shoe_6, material: uniqueMaterials.band, part: 'band' },
+    { node: nodes.shoe_7, material: uniqueMaterials.patch, part: 'patch' },
   ];
 
   return (
@@ -126,14 +139,12 @@ export default function ShoeModel({ colors, selectedPart, onPartSelect }) {
         const isHovered = hoveredPart === config.part;
         const baseColor = colors[config.part];
         
-        // Add highlight effect for selected/hovered parts
-        let displayColor = baseColor;
-        if (isSelected || isHovered) {
-          const color = new THREE.Color(baseColor);
-          // Brighten the color slightly for visual feedback
-          color.lerp(new THREE.Color(1, 1, 1), isSelected ? 0.3 : 0.15);
-          displayColor = `#${color.getHexString()}`;
-        }
+        // Use the exact color without any modification
+        const displayColor = baseColor;
+        
+        // Use a scale pulse effect for selection instead of color/emissive changes
+        // This provides visual feedback without affecting the color perception
+        const scale = isSelected ? 1.025 : 1.0;
 
         return (
           <mesh
@@ -143,6 +154,7 @@ export default function ShoeModel({ colors, selectedPart, onPartSelect }) {
             geometry={config.node?.geometry}
             material={config.material}
             material-color={displayColor}
+            scale={scale}
             onPointerOver={(e) => {
               e.stopPropagation();
               setHoveredPart(config.part);
@@ -162,3 +174,4 @@ export default function ShoeModel({ colors, selectedPart, onPartSelect }) {
 }
 
 useGLTF.preload('/models/SneakerModel.glb');
+
