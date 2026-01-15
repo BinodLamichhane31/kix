@@ -4,7 +4,7 @@ import { ArrowLeft, Loader2, RotateCcw, ShoppingBag, Save, Zap, ChevronLeft, Che
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import ShoeViewer from '../components/ShoeViewer';
 import { appRoutes } from '../../../utils/navigation';
-import { formatPrice } from '../../../utils/currency';
+import { formatNPR } from '../../../utils/currency';
 import * as designService from '../../../services/api/design.service';
 import { addItemToCart } from '../../../services/api/cart.service';
 import { apiRequest } from '../../../services/api/client';
@@ -66,17 +66,40 @@ const baseModels = [
   },
 ];
 
+// Color pricing tiers (in Rs.)
+const getColorPrice = (color) => {
+  const colorLower = color.toLowerCase();
+  
+  // Basic colors - Rs. 100
+  if (['#000000', '#ffffff', '#9ca3af'].includes(colorLower)) {
+    return 100;
+  }
+  
+  // Standard colors - Rs. 200-300
+  if (['#d4a574', '#166534', '#1e40af', '#4b5563'].includes(colorLower)) {
+    return 250;
+  }
+  
+  // Premium colors - Rs. 400-500
+  if (['#3b82f6', '#dc2626', '#f472b6'].includes(colorLower)) {
+    return 450;
+  }
+  
+  // Default for custom colors
+  return 300;
+};
+
 const colorSwatches = [
-  '#000000', // Black
-  '#ffffff', // White
-  '#9ca3af', // Light Grey
-  '#d4a574', // Tan/Beige
-  '#166534', // Dark Green
-  '#1e40af', // Dark Blue
-  '#3b82f6', // Light Blue
-  '#4b5563', // Dark Purple/Grey
-  '#dc2626', // Dark Red
-  '#f472b6', // Pink
+  '#000000', // Black - Basic (Rs. 100)
+  '#ffffff', // White - Basic (Rs. 100)
+  '#9ca3af', // Light Grey - Basic (Rs. 100)
+  '#d4a574', // Tan/Beige - Standard (Rs. 250)
+  '#166534', // Dark Green - Standard (Rs. 250)
+  '#1e40af', // Dark Blue - Standard (Rs. 250)
+  '#3b82f6', // Light Blue - Premium (Rs. 450)
+  '#4b5563', // Dark Purple/Grey - Standard (Rs. 250)
+  '#dc2626', // Dark Red - Premium (Rs. 450)
+  '#f472b6', // Pink - Premium (Rs. 450)
 ];
 
 export default function CustomizeSneaker() {
@@ -95,7 +118,24 @@ export default function CustomizeSneaker() {
   const [saving, setSaving] = useState(false);
   const [loadingProduct, setLoadingProduct] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [selectedSize, setSelectedSize] = useState('9'); // Default size
   const { showToast } = useToast();
+  
+  // Calculate dynamic price based on colors
+  const calculatePrice = () => {
+    const BASE_PRICE = 3000;
+    let totalPrice = BASE_PRICE;
+    
+    // Add color surcharges for each part
+    Object.values(colors).forEach(color => {
+      totalPrice += getColorPrice(color);
+    });
+    
+    // Cap at Rs. 7,500
+    return Math.min(totalPrice, 7500);
+  };
+  
+  const customizationPrice = calculatePrice();
   
   // Load design if designId is provided
   useEffect(() => {
@@ -249,7 +289,7 @@ export default function CustomizeSneaker() {
     return realProduct || {
       _id: 'temp-id',
       name: selectedBaseModel.name,
-      price: 2500,
+      price: 3000, // Base customization price
       slug: selectedBaseModel.slug
     };
   };
@@ -310,8 +350,9 @@ export default function CustomizeSneaker() {
       const cartItemData = {
         productId: currentProduct._id,
         quantity: 1,
-        size: '9', // Default size
+        size: selectedSize,
         color: 'Custom',
+        price: customizationPrice, // Use the dynamic customization price
         customization: {
           colors,
           baseModel: {
@@ -581,41 +622,61 @@ export default function CustomizeSneaker() {
                 </button>
               </div>
 
-              {/* Purchase Card */}
-              <div className="bg-white dark:bg-brand-gray rounded-2xl border border-gray-200 dark:border-white/10 p-6 space-y-4 sticky bottom-6">
-                <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-white/10">
-                  <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">Total</span>
-                  <span className="text-2xl font-black text-brand-black dark:text-white">
-                    {loadingProduct ? (
-                      <Loader2 size={24} className="animate-spin" />
-                    ) : (
-                      formatPrice(realProduct?.price || 189)
-                    ) }
+              {/* Purchase Card - Compact */}
+              <div className="bg-white dark:bg-brand-gray rounded-xl border border-gray-200 dark:border-white/10 p-4 space-y-3 sticky bottom-6">
+                {/* Price */}
+                <div className="flex items-center justify-between pb-2 border-b border-gray-200 dark:border-white/10">
+                  <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Total</span>
+                  <span className="text-xl font-black text-brand-black dark:text-white">
+                    {formatNPR(customizationPrice)}
                   </span>
                 </div>
                 
-                <div className="flex flex-col gap-3">
+                {/* Size Selector - Compact */}
+                <div className="pb-2 border-b border-gray-200 dark:border-white/10">
+                  <label className="block mb-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400">
+                    Size
+                  </label>
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {['5', '6', '7', '8', '9', '10', '11'].map((size) => (
+                      <button
+                        key={size}
+                        onClick={() => setSelectedSize(size)}
+                        className={`px-2 py-1.5 text-xs font-bold rounded-md border-2 transition-all ${
+                          selectedSize === size
+                            ? 'border-brand-accent bg-brand-accent/10 text-brand-black dark:text-white'
+                            : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20'
+                        }`}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Action Buttons - Compact */}
+                <div className="flex flex-col gap-2">
                   <button
                     onClick={() => handleAddToCart(true)}
                     disabled={saving}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 border border-gray-200 dark:border-white/10 rounded-xl font-semibold hover:border-gray-300 dark:hover:border-white/20 transition-colors disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-1.5 px-4 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg font-semibold hover:border-gray-300 dark:hover:border-white/20 transition-colors disabled:opacity-50"
                   >
                     {saving ? (
-                      <Loader2 size={18} className="animate-spin" />
+                      <Loader2 size={16} className="animate-spin" />
                     ) : (
-                      <ShoppingBag size={18} />
+                      <ShoppingBag size={16} />
                     )}
                     Add to Cart
                   </button>
                   <button
                     onClick={handleDirectlyBuy}
                     disabled={saving}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-brand-black dark:bg-brand-accent text-white dark:text-brand-black rounded-xl font-bold hover:bg-brand-accent dark:hover:bg-white transition-colors disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-1.5 px-4 py-2 text-sm bg-brand-black dark:bg-brand-accent text-white dark:text-brand-black rounded-lg font-bold hover:bg-brand-accent dark:hover:bg-white transition-colors disabled:opacity-50"
                   >
                     {saving ? (
-                      <Loader2 size={18} className="animate-spin" />
+                      <Loader2 size={16} className="animate-spin" />
                     ) : (
-                      <Zap size={18} />
+                      <Zap size={16} />
                     )}
                     Buy Now
                   </button>

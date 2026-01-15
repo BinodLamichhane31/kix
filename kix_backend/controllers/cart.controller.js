@@ -39,7 +39,7 @@ export const getCart = async (req, res) => {
 export const addItemToCart = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { productId, quantity, size, color, customization } = req.body;
+    const { productId, quantity, size, color, customization, price } = req.body;
 
     // Validate required fields
     if (!productId || !quantity || !size || !color) {
@@ -94,7 +94,7 @@ export const addItemToCart = async (req, res) => {
       quantity: parseInt(quantity),
       size,
       color,
-      price: product.price,
+      price: price || product.price, // Use custom price if provided, otherwise use product price
       customization: customization || null,
     };
 

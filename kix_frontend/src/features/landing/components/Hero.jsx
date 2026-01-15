@@ -122,7 +122,7 @@ export function Hero() {
                 {/* Bottom Price Card */}
                 <div className="absolute px-8 py-4 text-base font-black transition-transform transform -translate-x-1/2 border-2 shadow-2xl -bottom-8 left-1/2 bg-gradient-to-r from-brand-accent to-green-500 text-brand-black rounded-2xl hover:scale-105 border-white/20">
                   <p className="mb-1 text-xs opacity-90">Starting from</p>
-                  <p className="text-xl">Rs. 2,500</p>
+                  <p className="text-xl">Rs. 3,000</p>
                 </div>
 
                 {/* Side Decorative Elements */}
