@@ -5,6 +5,7 @@ import { formatPrice } from '../../../utils/currency';
 import { appRoutes } from '../../../utils/navigation';
 import * as cartService from '../../../services/api/cart.service';
 import { useCart } from '../../../store/contexts/CartContext';
+import DesignPreviewModal from '../../customize/components/DesignPreviewModal';
 
 const shippingOptions = [
   { id: 'standard', label: 'Standard', description: '3-5 business days', price: 0 },
@@ -30,6 +31,7 @@ export default function CartPage() {
   const [promoInput, setPromoInput] = useState('');
   const [appliedPromo, setAppliedPromo] = useState(null);
   const [error, setError] = useState('');
+  const [previewDesign, setPreviewDesign] = useState(null);
 
   useEffect(() => {
     loadCart();
@@ -239,10 +241,25 @@ export default function CartPage() {
                       <div className="flex-1 flex flex-col justify-between min-w-0">
                         <div className="flex justify-between gap-4 mb-3">
                           <div className="min-w-0 flex-1">
-                            <h3 className="text-base font-bold mb-1 truncate">{productName}</h3>
+                            <h3 className="text-base font-bold mb-1 truncate">
+                              {item.customization?.designName || productName}
+                            </h3>
                             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                               {item.color} · {item.size}
                             </p>
+                            {item.customization && (
+                              <div className="flex flex-wrap items-center gap-2 mt-2">
+                                <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-accent/20 text-brand-accent text-[10px] font-bold uppercase tracking-wider">
+                                  Custom Design
+                                </div>
+                                <button
+                                  onClick={() => setPreviewDesign(item.customization)}
+                                  className="text-[10px] font-bold text-brand-black dark:text-white hover:text-brand-accent dark:hover:text-brand-accent transition-colors flex items-center gap-1 underline underline-offset-2"
+                                >
+                                  360 View
+                                </button>
+                              </div>
+                            )}
                             <div className="flex items-center gap-2 mt-2">
                               <span className="text-base font-bold">{formatPrice(item.price)}</span>
                             </div>
@@ -401,6 +418,13 @@ export default function CartPage() {
           </div>
         </div>
       </div>
+
+      <DesignPreviewModal 
+        isOpen={!!previewDesign}
+        onClose={() => setPreviewDesign(null)}
+        design={previewDesign || {}}
+        title={previewDesign?.designName}
+      />
     </section>
   );
 }

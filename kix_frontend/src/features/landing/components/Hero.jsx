@@ -1,4 +1,4 @@
-import { ArrowRight, Sparkles, Zap } from 'lucide-react';
+import { ArrowRight, Palette, Zap, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { appRoutes } from '../../../utils/navigation';
 
@@ -17,7 +17,7 @@ export function Hero() {
           <div className="space-y-8 text-center lg:text-left">
             {/* Badge */}
             <div className="inline-flex items-center px-5 py-2 space-x-2 border border-gray-200 rounded-full shadow-sm bg-white/80 dark:bg-white/5 backdrop-blur-sm dark:border-white/10 dark:shadow-none">
-              <Sparkles size={16} className="text-brand-accent" />
+              <Palette size={16} className="text-brand-accent" />
               <span className="text-xs font-bold tracking-wider text-gray-700 uppercase dark:text-gray-300">
                 Customize Your Style
               </span>
@@ -102,7 +102,7 @@ export function Hero() {
                 <div className="absolute p-5 transition-transform transform border-2 border-gray-200 shadow-2xl -top-6 -right-6 lg:-right-12 bg-white/95 dark:bg-brand-gray/95 backdrop-blur-lg rounded-2xl dark:border-white/20 dark:shadow-none hover:scale-105">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-brand-accent/20 dark:bg-brand-accent/30">
-                      <Sparkles size={20} className="text-brand-accent" />
+                      <Star size={20} className="text-brand-accent fill-brand-accent" />
                     </div>
                     <div>
                       <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Featured</p>
@@ -122,7 +122,7 @@ export function Hero() {
                 {/* Bottom Price Card */}
                 <div className="absolute px-8 py-4 text-base font-black transition-transform transform -translate-x-1/2 border-2 shadow-2xl -bottom-8 left-1/2 bg-gradient-to-r from-brand-accent to-green-500 text-brand-black rounded-2xl hover:scale-105 border-white/20">
                   <p className="mb-1 text-xs opacity-90">Starting from</p>
-                  <p className="text-xl">₨19,285</p>
+                  <p className="text-xl">Rs. 2,500</p>
                 </div>
 
                 {/* Side Decorative Elements */}

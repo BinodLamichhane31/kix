@@ -36,10 +36,54 @@ export const createDesign = async (req, res) => {
       });
     }
 
-    // Check if design name already exists for this user
     const trimmedName = name.trim();
+    const isAutoSaved = tags && tags.includes('auto-saved');
+
+    // Check if design name already exists for this user
     const existingDesign = await Design.findOne({ user: userId, name: trimmedName });
+    
     if (existingDesign) {
+      // For auto-saved designs, check if it's identical (same colors and base model)
+      if (isAutoSaved) {
+        const colorsMatch = JSON.stringify(existingDesign.colors) === JSON.stringify(colors);
+        const baseModelMatch = existingDesign.baseModel.id === baseModel.id;
+        
+        if (colorsMatch && baseModelMatch) {
+          // Return the existing design instead of creating a duplicate
+          await existingDesign.populate('user', 'name email');
+          return res.status(200).json({
+            success: true,
+            message: 'Design already exists',
+            data: existingDesign,
+          });
+        }
+        
+        // If not identical, append timestamp to make name unique
+        const timestamp = Date.now().toString(36).toUpperCase();
+        const uniqueName = `${trimmedName.replace(/#[A-Z0-9]+$/, '')}#${timestamp}`;
+        
+        // Create design with unique name
+        const design = await Design.create({
+          user: userId,
+          name: uniqueName,
+          description: description?.trim() || '',
+          baseModel,
+          colors,
+          thumbnail: thumbnail || null,
+          status: status || 'draft',
+          tags: tags || [],
+        });
+
+        await design.populate('user', 'name email');
+
+        return res.status(201).json({
+          success: true,
+          message: 'Design saved successfully',
+          data: design,
+        });
+      }
+      
+      // For manually saved designs, return error
       return res.status(400).json({
         success: false,
         message: 'A design with this name already exists. Please choose a different name.',
@@ -75,6 +119,38 @@ export const createDesign = async (req, res) => {
     
     // Handle duplicate name error (from unique index)
     if (error.code === 11000 || error.message.includes('duplicate')) {
+      const isAutoSaved = req.body.tags && req.body.tags.includes('auto-saved');
+      
+      if (isAutoSaved) {
+        // For auto-saved designs, try again with timestamp
+        const timestamp = Date.now().toString(36).toUpperCase();
+        const baseName = req.body.name.trim().replace(/#[A-Z0-9]+$/, '');
+        const uniqueName = `${baseName}#${timestamp}`;
+        
+        try {
+          const design = await Design.create({
+            user: req.user.id,
+            name: uniqueName,
+            description: req.body.description?.trim() || '',
+            baseModel: req.body.baseModel,
+            colors: req.body.colors,
+            thumbnail: req.body.thumbnail || null,
+            status: req.body.status || 'draft',
+            tags: req.body.tags || [],
+          });
+
+          await design.populate('user', 'name email');
+
+          return res.status(201).json({
+            success: true,
+            message: 'Design saved successfully',
+            data: design,
+          });
+        } catch (retryError) {
+          console.error('Retry failed:', retryError);
+        }
+      }
+      
       return res.status(400).json({
         success: false,
         message: 'A design with this name already exists. Please choose a different name.',

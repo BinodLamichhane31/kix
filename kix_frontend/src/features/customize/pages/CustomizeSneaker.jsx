@@ -6,6 +6,8 @@ import ShoeViewer from '../components/ShoeViewer';
 import { appRoutes } from '../../../utils/navigation';
 import { formatPrice } from '../../../utils/currency';
 import * as designService from '../../../services/api/design.service';
+import { addItemToCart } from '../../../services/api/cart.service';
+import { apiRequest } from '../../../services/api/client';
 import { useAuth } from '../../../store/contexts/AuthContext';
 import { useToast } from '../../../store/contexts/ToastContext';
 import { DesignNameModal } from '../../../components/common/DesignNameModal';
@@ -37,24 +39,28 @@ const baseModels = [
   {
     id: 'classic',
     name: 'Classic Runner',
+    slug: 'air-max-90-classic',
     image: 'https://images.unsplash.com/photo-1460353581641-37baddab0fa2?q=80&w=2012&auto=format&fit=crop',
     description: 'Timeless design, perfect for everyday wear',
   },
   {
     id: 'sport',
     name: 'Sport Pro',
+    slug: 'ultra-boost-running-pro',
     image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=2070&auto=format&fit=crop',
     description: 'High-performance athletic sneaker',
   },
   {
     id: 'lifestyle',
     name: 'Lifestyle',
+    slug: 'retro-wave-lifestyle',
     image: 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?q=80&w=2012&auto=format&fit=crop',
     description: 'Comfortable and stylish for casual occasions',
   },
   {
     id: 'premium',
     name: 'Premium Elite',
+    slug: 'heritage-classic-low',
     image: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=2087&auto=format&fit=crop',
     description: 'Luxury materials and premium craftsmanship',
   },
@@ -83,9 +89,11 @@ export default function CustomizeSneaker() {
   const [activePartIndex, setActivePartIndex] = useState(0);
   const [selectedPart, setSelectedPart] = useState(null); // Track selected part from 3D model
   const [selectedBaseModel, setSelectedBaseModel] = useState(baseModels[0]);
+  const [realProduct, setRealProduct] = useState(null);
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [showPartMenu, setShowPartMenu] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadingProduct, setLoadingProduct] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const { showToast } = useToast();
   
@@ -95,6 +103,27 @@ export default function CustomizeSneaker() {
       loadDesign(designId);
     }
   }, [designId, isAuthenticated]);
+
+  // Fetch real product data when base model changes
+  useEffect(() => {
+    if (selectedBaseModel?.slug) {
+      loadRealProduct(selectedBaseModel.slug);
+    }
+  }, [selectedBaseModel]);
+  
+  const loadRealProduct = async (slug) => {
+    try {
+      setLoadingProduct(true);
+      const product = await apiRequest(`/products/slug/${slug}`);
+      if (product.success) {
+        setRealProduct(product.data);
+      }
+    } catch (error) {
+      console.error('Error loading real product:', error);
+    } finally {
+      setLoadingProduct(false);
+    }
+  };
   
   const loadDesign = async (id) => {
     try {
@@ -178,15 +207,136 @@ export default function CustomizeSneaker() {
   };
 
   const handleDirectlyBuy = async () => {
-    // This would need a product ID - for now, just navigate to customize page
-    // In a real implementation, you'd create a product from the design first
-    showToast('Please add this design to cart first, then proceed to checkout', 'info');
+    if (!isAuthenticated) {
+      navigate('/auth/sign-in');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      
+      // Ensure product is loaded
+      await ensureProductLoaded();
+      
+      // Add to cart (which also saves the design)
+      await handleAddToCart(false);
+      
+      // Navigate to checkout only after successful cart addition
+      navigate('/checkout');
+    } catch (error) {
+      console.error('Checkout preparation failed:', error);
+      showToast(error.message || 'Failed to prepare checkout. Please try again.', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleAddToCart = async () => {
-    // This would need to create a product from the design
-    // For now, show a message
-    showToast('Custom designs need to be saved first. Please save your design.', 'info');
+  const ensureProductLoaded = async () => {
+    if (realProduct) return realProduct;
+    
+    // Wait for product to load
+    try {
+      const response = await apiRequest(`/products/slug/${selectedBaseModel.slug}`);
+      if (response && response.success) {
+        setRealProduct(response.data);
+        return response.data;
+      }
+    } catch (error) {
+      console.error('Error loading product:', error);
+    }
+    
+    // Fallback to a default product structure if API fails
+    return realProduct || {
+      _id: 'temp-id',
+      name: selectedBaseModel.name,
+      price: 2500,
+      slug: selectedBaseModel.slug
+    };
+  };
+
+  const handleAddToCart = async (showNotification = true) => {
+    if (!isAuthenticated) {
+      navigate('/auth/sign-in');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      
+      // Ensure product is loaded
+      const currentProduct = await ensureProductLoaded();
+      
+      // 1. Generate a unique name for the design using timestamp + random for better uniqueness
+      const timestamp = Date.now().toString(36).toUpperCase();
+      const randomStr = Math.random().toString(36).substring(2, 5).toUpperCase();
+      const uniqueId = `${timestamp}${randomStr}`;
+      const designName = `Custom ${selectedBaseModel.name} #${uniqueId}`;
+
+      // 2. Auto-save the design
+      const designData = {
+        name: designName,
+        description: `Customized ${selectedBaseModel.name} order design`,
+        baseModel: {
+          id: selectedBaseModel.id,
+          name: selectedBaseModel.name,
+          image: selectedBaseModel.image,
+        },
+        colors,
+        status: 'draft',
+        tags: ['auto-saved', 'cart-item'],
+      };
+
+      let savedDesignResponse;
+      let savedDesignId;
+      
+      try {
+        savedDesignResponse = await designService.createDesign(designData);
+        savedDesignId = savedDesignResponse?.data?._id || savedDesignResponse?._id;
+        
+        if (!savedDesignId) {
+          throw new Error('Failed to save design - no ID returned');
+        }
+      } catch (designError) {
+        console.error('Error saving design:', designError);
+        
+        // If design save fails, still try to add to cart without design reference
+        // This ensures the user can still purchase even if design save fails
+        if (showNotification) {
+          showToast('Design could not be saved, but item will be added to cart', 'warning');
+        }
+      }
+
+      // 3. Add to cart with design metadata using cart service
+      const cartItemData = {
+        productId: currentProduct._id,
+        quantity: 1,
+        size: '9', // Default size
+        color: 'Custom',
+        customization: {
+          colors,
+          baseModel: {
+            id: selectedBaseModel.id,
+            name: selectedBaseModel.name
+          },
+          designName: designName,
+          designId: savedDesignId || null
+        }
+      };
+
+      await addItemToCart(cartItemData);
+
+      if (showNotification) {
+        showToast(`"${designName}" added to cart!`, 'success');
+      }
+    } catch (error) {
+      console.error('Error in custom purchase flow:', error);
+      if (showNotification) {
+        showToast(error.message || 'Failed to process your design. Please try again.', 'error');
+      }
+      throw error;
+    } finally {
+      setSaving(false);
+    }
   };
 
   const nextPart = () => {
@@ -436,23 +586,37 @@ export default function CustomizeSneaker() {
                 <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-white/10">
                   <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">Total</span>
                   <span className="text-2xl font-black text-brand-black dark:text-white">
-                    {formatPrice(189)}
+                    {loadingProduct ? (
+                      <Loader2 size={24} className="animate-spin" />
+                    ) : (
+                      formatPrice(realProduct?.price || 189)
+                    ) }
                   </span>
                 </div>
                 
                 <div className="flex flex-col gap-3">
                   <button
-                    onClick={handleAddToCart}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 border border-gray-200 dark:border-white/10 rounded-xl font-semibold hover:border-gray-300 dark:hover:border-white/20 transition-colors"
+                    onClick={() => handleAddToCart(true)}
+                    disabled={saving}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 border border-gray-200 dark:border-white/10 rounded-xl font-semibold hover:border-gray-300 dark:hover:border-white/20 transition-colors disabled:opacity-50"
                   >
-                    <ShoppingBag size={18} />
+                    {saving ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                      <ShoppingBag size={18} />
+                    )}
                     Add to Cart
                   </button>
                   <button
                     onClick={handleDirectlyBuy}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-brand-black dark:bg-brand-accent text-white dark:text-brand-black rounded-xl font-bold hover:bg-brand-accent dark:hover:bg-white transition-colors"
+                    disabled={saving}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-brand-black dark:bg-brand-accent text-white dark:text-brand-black rounded-xl font-bold hover:bg-brand-accent dark:hover:bg-white transition-colors disabled:opacity-50"
                   >
-                    <Zap size={18} />
+                    {saving ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                      <Zap size={18} />
+                    )}
                     Buy Now
                   </button>
                 </div>

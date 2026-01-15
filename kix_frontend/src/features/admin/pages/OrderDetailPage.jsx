@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import * as orderService from '../../../services/api/order.service';
 import { formatPrice } from '../../../utils/currency';
 import { useToast } from '../../../store/contexts/ToastContext';
+import DesignPreviewModal from '../../customize/components/DesignPreviewModal';
 
 // Order status mapping
 const adminOrderStatusMap = {
@@ -49,6 +50,7 @@ export default function OrderDetailPage() {
   const [orderStatus, setOrderStatus] = useState('');
   const [trackingNumber, setTrackingNumber] = useState('');
   const [saving, setSaving] = useState(false);
+  const [previewDesign, setPreviewDesign] = useState(null);
 
   useEffect(() => {
     loadOrder();
@@ -245,12 +247,38 @@ export default function OrderDetailPage() {
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold mb-1">{transformedItem.name}</p>
+                      <p className="font-semibold mb-1">
+                        {item.customization?.designName || transformedItem.name}
+                      </p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {transformedItem.color} · {transformedItem.size} · Quantity: {transformedItem.qty}
                       </p>
                       {item.customization && (
-                        <p className="text-xs text-brand-accent mt-1">Custom Design</p>
+                        <div className="mt-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-bold text-brand-accent uppercase tracking-wider">Custom Design Details</p>
+                            <button
+                              onClick={() => setPreviewDesign(item.customization)}
+                              className="text-[10px] font-bold text-brand-black dark:text-white hover:text-brand-accent dark:hover:text-brand-accent transition-colors flex items-center gap-1 underline underline-offset-2"
+                            >
+                              360 View Design
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {Object.entries(item.customization.colors || {}).map(([part, color]) => (
+                              <div key={part} className="flex items-center gap-2 bg-gray-50 dark:bg-white/5 p-1.5 rounded-lg border border-gray-100 dark:border-white/5">
+                                <div 
+                                  className="w-4 h-4 rounded shadow-sm shrink-0 border border-gray-200 dark:border-white/10"
+                                  style={{ backgroundColor: color }}
+                                />
+                                <div className="min-w-0">
+                                  <p className="text-[10px] text-gray-500 dark:text-gray-400 capitalize truncate">{part}</p>
+                                  <p className="text-[10px] font-mono font-bold uppercase">{color}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
                     <div className="text-right">
@@ -394,6 +422,13 @@ export default function OrderDetailPage() {
           </div>
         </div>
       </div>
+
+      <DesignPreviewModal 
+        isOpen={!!previewDesign}
+        onClose={() => setPreviewDesign(null)}
+        design={previewDesign || {}}
+        title={previewDesign?.designName}
+      />
     </div>
   );
 }

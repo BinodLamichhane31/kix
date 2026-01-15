@@ -901,7 +901,9 @@ export default function CheckoutPage() {
                         <img src={productImage} alt={productName} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate">{productName}</p>
+                        <p className="text-sm font-semibold truncate">
+                          {item.customization?.designName || productName}
+                        </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           {item.color} · {item.size} · Qty: {item.quantity}
                         </p>

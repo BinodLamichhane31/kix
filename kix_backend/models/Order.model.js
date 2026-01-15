@@ -49,6 +49,11 @@ const orderItemSchema = new mongoose.Schema({
         id: String,
         name: String,
       },
+      designName: String,
+      designId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Design',
+      },
     },
     default: null,
   },
